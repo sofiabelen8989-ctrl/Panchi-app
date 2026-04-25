@@ -3,25 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
+import React, { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-// Note: In React Router / Vite based apps, we use lazy components for similar dynamic effects
-// or simply handle the window check. Since we are using standard React here,
-// we just need to ensure Leaflet doesn't explode during initial module load.
-// We'll use a dynamic-ish pattern since we're in a browser-only environment anyway,
-// but to be safe and follow the prompt's Next.js style suggestion:
+const MapComponent = lazy(() => import("../components/MapComponent"));
 
 const Map = () => {
     const [userLocation, setUserLocation] = useState<{ latitude: number, longitude: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [MapComponent, setMapComponent] = useState<any>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -45,11 +39,6 @@ const Map = () => {
             },
             { enableHighAccuracy: true }
         );
-
-        // Load the actual map component only in the browser
-        import("../components/MapComponent").then(mod => {
-            setMapComponent(() => mod.default);
-        });
     }, []);
 
     if (loading) {
@@ -94,14 +83,16 @@ const Map = () => {
               </Button>
             </div>
             
-            {userLocation && MapComponent ? (
-                <MapComponent userLocation={userLocation} />
-            ) : (
-                <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
-                    <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                    <p className="mt-4 text-secondary font-bold">Unfolding the map... 🗺️</p>
-                </div>
-            )}
+            {userLocation ? (
+                <Suspense fallback={
+                    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
+                        <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                        <p className="mt-4 text-secondary font-bold">Unfolding the map... 🗺️</p>
+                    </div>
+                }>
+                    <MapComponent userLocation={userLocation} />
+                </Suspense>
+            ) : null}
         </div>
     );
 };
