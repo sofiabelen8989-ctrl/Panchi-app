@@ -2,11 +2,12 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { PanchiLogo } from "./PanchiLogo";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin, ChevronDown, Check, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin, ChevronDown, Check, Sparkles, Bell } from "lucide-react";
+import { cn, formatTimeAgo } from "@/lib/utils";
 import { supabase } from "../lib/supabaseClient";
 import { useEffect, useState } from "react";
 import { useDog } from "../contexts/DogContext";
+import NotificationItem from "./NotificationItem";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -23,6 +24,9 @@ export function Navbar() {
   const [ownerName, setOwnerName] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,6 +34,7 @@ export function Navbar() {
       if (session?.user) {
         fetchOwner(session.user.id);
         fetchUnreadCount(session.user.id);
+        fetchNotifications(session.user.id);
       }
     });
 
@@ -38,18 +43,21 @@ export function Navbar() {
       if (session?.user) {
         fetchOwner(session.user.id);
         fetchUnreadCount(session.user.id);
+        fetchNotifications(session.user.id);
       }
       else {
         setOwnerName(null);
         setUnreadCount(0);
+        setNotifications([]);
+        setUnreadNotifCount(0);
       }
     });
 
-    // Real-time unread count
-    let channel: any;
+    // Real-time unread messages count
+    let messageChannel: any;
     if (session?.user) {
-      channel = supabase
-        .channel('unread-navbar')
+      messageChannel = supabase
+        .channel('unread-navbar-messages')
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -60,11 +68,60 @@ export function Navbar() {
         .subscribe();
     }
 
+    // Real-time notifications
+    let notifChannel: any;
+    if (session?.user) {
+      notifChannel = supabase
+        .channel('notifications-navbar')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `owner_id=eq.${session.user.id}`
+        }, (payload: any) => {
+          setNotifications(prev => [payload.new, ...prev]);
+          setUnreadNotifCount(prev => prev + 1);
+          if ('vibrate' in navigator) {
+            navigator.vibrate(200);
+          }
+        })
+        .subscribe();
+    }
+
     return () => {
       subscription.unsubscribe();
-      if (channel) supabase.removeChannel(channel);
+      if (messageChannel) supabase.removeChannel(messageChannel);
+      if (notifChannel) supabase.removeChannel(notifChannel);
     };
   }, [session?.user?.id]);
+
+  const fetchNotifications = async (userId: string) => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    setNotifications(data || []);
+    setUnreadNotifCount((data || []).filter((n: any) => !n.read).length);
+  };
+
+  const markAllAsRead = async () => {
+    if (!session?.user) return;
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('owner_id', session.user.id)
+      .eq('read', false);
+    
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setUnreadNotifCount(0);
+  };
+
+  const handleReadNotification = (id: string) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    setUnreadNotifCount(prev => Math.max(0, prev - 1));
+  };
 
   const fetchUnreadCount = async (userId: string) => {
     const { count } = await supabase
@@ -105,6 +162,55 @@ export function Navbar() {
               </span>
             )}
           </NavLink>
+          
+          {session && (
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 text-amber-600 hover:bg-amber-50 rounded-xl transition-colors focus:outline-none"
+              >
+                <Bell className="w-6 h-6" />
+                {unreadNotifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 top-12 w-80 bg-white rounded-2xl shadow-xl border border-amber-100 z-50 max-h-96 overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-amber-100">
+                    <h3 className="font-bold text-amber-800">Notifications</h3>
+                    {unreadNotifCount > 0 && (
+                      <button
+                        onClick={markAllAsRead}
+                        className="text-xs text-amber-500 hover:text-amber-700 font-bold"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col">
+                    {notifications.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <p className="text-4xl mb-3">🐾</p>
+                        <p className="text-amber-600 text-sm font-medium">No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.map(notification => (
+                        <NotificationItem
+                          key={notification.id}
+                          notification={notification}
+                          onRead={handleReadNotification}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           
           {session ? (
             <div className="flex items-center gap-6">
@@ -201,26 +307,37 @@ export function Navbar() {
 
 export function BottomNav() {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
 
   useEffect(() => {
     let session: any;
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       session = s;
-      if (session?.user) fetchUnreadCount(session.user.id);
+      if (session?.user) {
+        fetchUnreadCount(session.user.id);
+        fetchUnreadNotifCount(session.user.id);
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       session = s;
-      if (session?.user) fetchUnreadCount(session.user.id);
-      else setUnreadCount(0);
+      if (session?.user) {
+        fetchUnreadCount(session.user.id);
+        fetchUnreadNotifCount(session.user.id);
+      }
+      else {
+        setUnreadCount(0);
+        setUnreadNotifCount(0);
+      }
     });
 
-    let channel: any;
+    let messageChannel: any;
+    let notifChannel: any;
     const setupRealtime = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        channel = supabase
-          .channel('unread-bottom')
+        messageChannel = supabase
+          .channel('unread-bottom-messages')
           .on('postgres_changes', {
             event: '*',
             schema: 'public',
@@ -229,13 +346,25 @@ export function BottomNav() {
             fetchUnreadCount(session.user.id);
           })
           .subscribe();
+
+        notifChannel = supabase
+          .channel('unread-bottom-notifications')
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'notifications'
+          }, () => {
+            fetchUnreadNotifCount(session.user.id);
+          })
+          .subscribe();
       }
     };
     setupRealtime();
 
     return () => {
       subscription.unsubscribe();
-      if (channel) supabase.removeChannel(channel);
+      if (messageChannel) supabase.removeChannel(messageChannel);
+      if (notifChannel) supabase.removeChannel(notifChannel);
     };
   }, []);
 
@@ -248,12 +377,32 @@ export function BottomNav() {
     setUnreadCount(count || 0);
   };
 
+  const fetchUnreadNotifCount = async (userId: string) => {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('owner_id', userId)
+      .eq('read', false);
+    setUnreadNotifCount(count || 0);
+  };
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-amber-100 flex items-stretch justify-around h-16 safe-area-bottom">
       <BottomNavLink to="/" icon={<Home className="w-5 h-5" />} label="Home" />
       <BottomNavLink to="/feed" icon={<Search className="w-5 h-5" />} label="Feed" />
       <BottomNavLink to="/ask-panchi" icon={<Sparkles className="w-5 h-5" />} label="Ask Panchi" />
-      <BottomNavLink to="/community" icon={<LayoutGrid className="w-5 h-5" />} label="Community" />
+      <BottomNavLink 
+        to="/inbox" 
+        icon={
+          <div className="relative">
+            <MessageSquare className="w-5 h-5" />
+            {(unreadCount > 0 || unreadNotifCount > 0) && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+            )}
+          </div>
+        } 
+        label="Inbox" 
+      />
       <BottomNavLink to="/my-dogs" icon={<DogIcon className="w-5 h-5" />} label="My Pack" />
     </nav>
   );

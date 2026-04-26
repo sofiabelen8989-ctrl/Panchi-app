@@ -73,31 +73,80 @@ export function Feed() {
     }
   };
 
-  const handleRequest = async (targetDogId: string, requesterId: string = activeDog?.id || "") => {
+  const handleRequest = async (targetDog: any, requesterId: string = activeDog?.id || "") => {
     if (!requesterId) {
       toast.error("Please select a dog first! 🐾");
       return;
     }
     
     try {
-      const { error } = await supabase.from('playdate_requests').insert({
-        requester_dog_id: requesterId,
-        receiver_dog_id: targetDogId,
-        status: 'pending'
+      // 1. Insert playdate request
+      const { data: request, error: requestError } = await supabase
+        .from('playdate_requests')
+        .insert({
+          requester_dog_id: requesterId,
+          receiver_dog_id: targetDog.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (requestError) throw requestError;
+
+      // 2. Get active dog details
+      const activeDogData = myDogs.find(d => d.id === requesterId);
+      
+      // 3. Get target owner email from auth
+      const { data: targetAuthUser } = await supabase
+        .rpc('get_user_email', { 
+          user_id: targetDog.owner_id 
+        });
+
+      // 4. Create in-app notification
+      await supabase.from('notifications').insert({
+        owner_id: targetDog.owner_id,
+        type: 'playdate_request',
+        title: 'New Playdate Request! 🎾',
+        message: `${activeDogData?.name} wants to have a playdate with ${targetDog.name}!`,
+        read: false,
+        data: {
+          request_id: request.id,
+          requester_dog_id: activeDogData?.id,
+          requester_dog_name: activeDogData?.name,
+          requester_dog_photo: activeDogData?.dog_photo,
+          receiver_dog_id: targetDog.id,
+          receiver_dog_name: targetDog.name
+        }
       });
 
-      if (error) throw error;
-      
-      // Update local state if it was the active dog
+      // 5. Send email via Supabase Edge Function
+      if (targetAuthUser && targetAuthUser[0]?.email) {
+        try {
+          await supabase.functions.invoke(
+            'send-notification-email',
+            {
+              body: {
+                to: targetAuthUser[0].email,
+                dogName: targetDog.name,
+                requesterDogName: activeDogData?.name,
+                appUrl: window.location.origin
+              }
+            }
+          );
+        } catch (emailError) {
+          console.warn('Could not send notification email:', emailError);
+        }
+      }
+
+      // Update local state
       if (requesterId === activeDog?.id) {
-        setRequests(prev => new Set([...prev, targetDogId]));
+        setRequests(prev => new Set([...prev, targetDog.id]));
       }
       
-      const senderDog = myDogs.find(d => d.id === requesterId);
-      toast.success(`Playdate request sent for ${senderDog?.name}! 🐾`);
+      toast.success(`Playdate request sent to ${targetDog.name}! 🐾`);
     } catch (error: any) {
       console.error("Error sending request:", error);
-      toast.error("Failed to send request: " + error.message);
+      toast.error("Failed to send request. Try again 🐾");
     }
   };
 
@@ -234,7 +283,7 @@ export function Feed() {
               isRequested={requests.has(dog.id)} 
               activeDog={activeDog}
               myDogs={myDogs}
-              onRequest={(requesterId) => handleRequest(dog.id, requesterId)} 
+              onRequest={(requesterId) => handleRequest(dog, requesterId)} 
               onContact={() => handleContact(dog.id)}
               isActionLoading={actionLoading === dog.id}
             />
