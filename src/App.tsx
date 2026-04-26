@@ -21,6 +21,8 @@ import { Inbox } from "./pages/Inbox";
 import { Chat } from "./pages/Chat";
 import { Community } from "./pages/Community";
 import { MapPage } from "./pages/MapPage";
+import MyDogs from "./pages/MyDogs";
+import { DogProvider, useDog } from "./contexts/DogContext";
 import { AnimatePresence, motion } from "motion/react";
 import { supabase } from "./lib/supabaseClient";
 import { Session } from "@supabase/supabase-js";
@@ -61,6 +63,18 @@ function PrivateRoute({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+function OnboardingRedirect() {
+  const { myDogs, loading } = useDog();
+  
+  if (loading) return null;
+  
+  if (myDogs.length === 0) {
+    return <Navigate to="/my-dogs" replace />;
+  }
+  
+  return <Navigate to="/feed" replace />;
+}
+
 function AnimatedRoutes() {
   const location = useLocation();
   
@@ -76,9 +90,10 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<OnboardingRedirect />} />
           <Route path="/feed" element={<PrivateRoute><Feed /></PrivateRoute>} />
           <Route path="/profile/:dogId" element={<PrivateRoute><Profile /></PrivateRoute>} />
+          <Route path="/my-dogs" element={<PrivateRoute><MyDogs /></PrivateRoute>} />
           <Route path="/ask-panchi" element={<PrivateRoute><AskPanchi /></PrivateRoute>} />
           <Route path="/create-profile" element={<PrivateRoute><CreateProfile /></PrivateRoute>} />
           <Route path="/inbox" element={<PrivateRoute><Inbox /></PrivateRoute>} />
@@ -94,19 +109,21 @@ function AnimatedRoutes() {
 export default function App() {
   return (
     <Router>
-      <Toaster position="top-center" richColors />
-      <ScrollToTop />
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <AnimatedRoutes />
-        <BottomNav />
-        
-        <footer className="hidden md:block py-10 text-center border-t border-primary/10 bg-white/30 backdrop-blur-sm mt-10">
-          <p className="text-secondary/50 text-sm font-medium">
-            © 2026 Panchi — Built for dogs, by dog lovers. 🐾
-          </p>
-        </footer>
-      </div>
+      <DogProvider>
+        <Toaster position="top-center" richColors />
+        <ScrollToTop />
+        <div className="min-h-screen bg-background">
+          <Navbar />
+          <AnimatedRoutes />
+          <BottomNav />
+          
+          <footer className="hidden md:block py-10 text-center border-t border-primary/10 bg-white/30 backdrop-blur-sm mt-10">
+            <p className="text-secondary/50 text-sm font-medium">
+              © 2026 Panchi — Built for dogs, by dog lovers. 🐾
+            </p>
+          </footer>
+        </div>
+      </DogProvider>
     </Router>
   );
 }

@@ -244,6 +244,7 @@ interface PostCardProps {
 }
 
 function PostCard({ post, currentUser }: PostCardProps) {
+  const { activeDog } = useDog();
   const [commentText, setCommentText] = useState("");
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -518,25 +519,19 @@ function PostCard({ post, currentUser }: PostCardProps) {
 }
 
 function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any, onSuccess: () => void, trigger?: React.ReactNode }) {
+  const { activeDog, myDogs } = useDog();
   const [isOpen, setIsOpen] = useState(false);
   const [photo, setPhoto] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
   const [selectedDogId, setSelectedDogId] = useState<string>("");
-  const [myDogs, setMyDogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (currentUser) {
-      supabase.from('dogs').select('id, name').eq('owner_id', currentUser.id)
-        .then(({ data }) => {
-          if (data) {
-            setMyDogs(data);
-            if (data.length === 1) setSelectedDogId(data[0].id);
-          }
-        });
+    if (activeDog) {
+      setSelectedDogId(activeDog.id);
     }
-  }, [currentUser]);
+  }, [activeDog, isOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -644,17 +639,39 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
               />
             </div>
 
-            {myDogs.length > 1 && (
+            {myDogs.length > 0 && (
               <div className="space-y-3">
-                <label className="text-[10px] font-black uppercase text-secondary tracking-widest px-1">Which Dog?</label>
+                <label className="text-[10px] font-black uppercase text-secondary tracking-widest px-1">Posting as:</label>
                 <Select value={selectedDogId} onValueChange={setSelectedDogId}>
-                  <SelectTrigger className="w-full h-14 rounded-2xl border-amber-100 focus:ring-primary bg-white text-lg font-bold text-secondary px-6 shadow-sm">
-                    <SelectValue placeholder="Select a dog" />
+                  <SelectTrigger className="w-full h-16 rounded-[1.5rem] border-amber-100 focus:ring-primary bg-white text-lg font-bold text-secondary px-4 shadow-sm">
+                    <SelectValue>
+                      {selectedDogId && (
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 rounded-full overflow-hidden shrink-0 border border-amber-50 shadow-sm">
+                            <AvatarImage src={myDogs.find(d => d.id === selectedDogId)?.dog_photo || ""} className="object-cover" />
+                            <AvatarFallback className="bg-amber-100 text-[10px] font-bold">
+                              {myDogs.find(d => d.id === selectedDogId)?.name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-secondary font-bold">{myDogs.find(d => d.id === selectedDogId)?.name}</span>
+                        </div>
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-amber-100 shadow-xl">
+                  <SelectContent className="rounded-2xl border-amber-100 shadow-xl overflow-hidden p-2 bg-white/95 backdrop-blur-md">
                     {myDogs.map(dog => (
-                      <SelectItem key={dog.id} value={dog.id} className="text-secondary font-bold h-12 cursor-pointer focus:bg-amber-50">
-                        {dog.name}
+                      <SelectItem 
+                        key={dog.id} 
+                        value={dog.id} 
+                        className="rounded-xl font-bold h-14 cursor-pointer focus:bg-amber-50 mb-1"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 rounded-full overflow-hidden shrink-0 border border-white shadow-sm">
+                            <AvatarImage src={dog.dog_photo || ""} className="object-cover" />
+                            <AvatarFallback className="bg-amber-100 text-[10px] font-bold">{dog.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-secondary font-bold">{dog.name}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

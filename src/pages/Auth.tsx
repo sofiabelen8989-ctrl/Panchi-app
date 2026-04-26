@@ -50,22 +50,20 @@ export function Auth() {
           if (profileError) {
             console.error("Owner Profile Insert Error:", profileError);
             toast.error("Account created, but profile setup failed: " + profileError.message);
-            // If the owners insert fails, still redirect to /create-profile so they can complete it later
-            navigate('/create-profile');
+            // Redirect to root to trigger onboarding
+            navigate('/');
             return;
           }
 
-          toast.success("Welcome to Panchi! profile created.");
-          navigate('/create-profile');
+          toast.success("Welcome to Panchi! Profile created.");
+          navigate('/');
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         if (data.user) {
           toast.success("Welcome back!");
-          const { data: dog } = await supabase.from('dogs').select('id').eq('owner_id', data.user.id).single();
-          if (dog) navigate('/feed');
-          else navigate('/create-profile');
+          navigate('/');
         }
       }
     } catch (err: any) {

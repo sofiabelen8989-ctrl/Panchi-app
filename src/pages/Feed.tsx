@@ -5,20 +5,27 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Dog, Owner } from "../types";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, MapPin, Filter, Loader2, Sparkles, MessageSquare } from "lucide-react";
+import { Search, MapPin, Loader2, Sparkles, ChevronDown } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useDog } from "../contexts/DogContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 export function Feed() {
+  const { activeDog, myDogs } = useDog();
   const [dogs, setDogs] = useState<any[]>([]);
-  const [myDog, setMyDog] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filterSize, setFilterSize] = useState<string>("all");
   const [filterEnergy, setFilterEnergy] = useState<string>("all");
@@ -29,7 +36,7 @@ export function Feed() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeDog?.id]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -37,34 +44,22 @@ export function Feed() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch current user's dog
-      const { data: myDogData } = await supabase
-        .from('dogs')
-        .select('*')
-        .eq('owner_id', user.id)
-        .maybeSingle();
-      
-      setMyDog(myDogData);
-
-      // Fetch all dogs + owners
+      // Fetch all dogs + owners (not belonging to current user)
       let query = supabase
         .from('dogs')
         .select('*, owners(first_name, neighborhood, owner_photo)')
+        .not('owner_id', 'eq', user.id)
         .order('created_at', { ascending: false });
       
-      if (myDogData) {
-        query = query.neq('id', myDogData.id);
-      }
-
       const { data: dogsData } = await query;
       setDogs(dogsData || []);
 
-      // Fetch sent requests
-      if (myDogData) {
+      // Fetch sent requests for active dog
+      if (activeDog) {
         const { data: reqData } = await supabase
           .from('playdate_requests')
           .select('receiver_dog_id')
-          .eq('requester_dog_id', myDogData.id);
+          .eq('requester_dog_id', activeDog.id);
         
         if (reqData) {
           setRequests(new Set(reqData.map(r => r.receiver_dog_id)));
@@ -77,19 +72,28 @@ export function Feed() {
     }
   };
 
-  const handleRequest = async (targetDogId: string) => {
-    if (!myDog) return;
+  const handleRequest = async (targetDogId: string, requesterId: string = activeDog?.id || "") => {
+    if (!requesterId) {
+      toast.error("Please select a dog first! 🐾");
+      return;
+    }
     
     try {
       const { error } = await supabase.from('playdate_requests').insert({
-        requester_dog_id: myDog.id,
+        requester_dog_id: requesterId,
         receiver_dog_id: targetDogId,
         status: 'pending'
       });
 
       if (error) throw error;
-      setRequests(prev => new Set([...prev, targetDogId]));
-      toast.success("Playdate request sent! 🐾");
+      
+      // Update local state if it was the active dog
+      if (requesterId === activeDog?.id) {
+        setRequests(prev => new Set([...prev, targetDogId]));
+      }
+      
+      const senderDog = myDogs.find(d => d.id === requesterId);
+      toast.success(`Playdate request sent for ${senderDog?.name}! 🐾`);
     } catch (error: any) {
       console.error("Error sending request:", error);
       toast.error("Failed to send request: " + error.message);
@@ -97,29 +101,26 @@ export function Feed() {
   };
 
   const handleContact = async (targetDogId: string) => {
-    if (!myDog) return;
+    if (!activeDog) return;
     setActionLoading(targetDogId);
     
     try {
-      // Feature 1: Contact Owner Button logic
       // Check for existing conversation
       const { data: existing, error: searchError } = await supabase
         .from('conversations')
         .select('id')
-        .or(`and(dog_one_id.eq.${myDog.id},dog_two_id.eq.${targetDogId}),and(dog_one_id.eq.${targetDogId},dog_two_id.eq.${myDog.id})`)
+        .or(`and(dog_one_id.eq.${activeDog.id},dog_two_id.eq.${targetDogId}),and(dog_one_id.eq.${targetDogId},dog_two_id.eq.${activeDog.id})`)
         .maybeSingle();
 
       if (searchError) throw searchError;
 
       if (existing) {
-        // Conversation already exists
         navigate(`/chat/${existing.id}`);
       } else {
-        // Create new conversation
         const { data: newConv, error: createError } = await supabase
           .from('conversations')
           .insert({
-            dog_one_id: myDog.id,
+            dog_one_id: activeDog.id,
             dog_two_id: targetDogId
           })
           .select()
@@ -161,19 +162,19 @@ export function Feed() {
     );
   }
 
-  if (!myDog) {
+  if (!activeDog && !loading) {
     return (
       <div className="max-w-xl mx-auto px-6 py-20 text-center">
         <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-6">
           <Sparkles className="w-10 h-10 text-primary" />
         </div>
-        <h2 className="text-3xl font-black text-secondary mb-4 tracking-tight">You haven't added your dog yet!</h2>
-        <p className="text-amber-800/60 font-medium mb-8">Create your dog's profile to start connecting with other owners 🐾</p>
+        <h2 className="text-3xl font-black text-secondary mb-4 tracking-tight">You haven't added your pack yet!</h2>
+        <p className="text-amber-800/60 font-medium mb-8">Add your first dog's profile to start connecting with other owners 🐾</p>
         <Button 
-          onClick={() => navigate('/create-profile')}
+          onClick={() => navigate('/my-dogs')}
           className="bg-primary hover:bg-primary/90 text-white rounded-2xl h-14 px-10 font-bold shadow-xl shadow-amber-600/20 text-lg"
         >
-          Create Profile Now
+          Add My Dog
         </Button>
       </div>
     );
@@ -230,7 +231,9 @@ export function Feed() {
             <DogFeedCard 
               dog={dog} 
               isRequested={requests.has(dog.id)} 
-              onRequest={() => handleRequest(dog.id)} 
+              activeDog={activeDog}
+              myDogs={myDogs}
+              onRequest={(requesterId) => handleRequest(dog.id, requesterId)} 
               onContact={() => handleContact(dog.id)}
               isActionLoading={actionLoading === dog.id}
             />
@@ -249,13 +252,17 @@ export function Feed() {
 function DogFeedCard({ 
   dog, 
   isRequested, 
+  activeDog,
+  myDogs,
   onRequest, 
   onContact, 
   isActionLoading 
 }: { 
   dog: any, 
   isRequested: boolean, 
-  onRequest: () => void, 
+  activeDog: any,
+  myDogs: any[],
+  onRequest: (requesterId?: string) => void, 
   onContact: () => void,
   isActionLoading: boolean
 }) {
@@ -307,17 +314,52 @@ function DogFeedCard({
         </div>
         
         <div className="grid grid-cols-2 gap-2 w-full">
-          <Button 
-            disabled={isRequested}
-            onClick={onRequest}
-            className={`h-10 px-2 text-[11px] font-bold rounded-xl transition-all ${
-              isRequested 
-              ? "bg-green-500 text-white hover:bg-green-500 cursor-default shadow-md shadow-green-100" 
-              : "bg-primary hover:bg-[#B45309] text-white shadow-md shadow-amber-600/10"
-            }`}
-          >
-            {isRequested ? "Sent ✓" : "Request 🐾"}
-          </Button>
+          {myDogs.length > 1 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  disabled={isRequested}
+                  className={`h-10 px-2 text-[11px] font-bold rounded-xl transition-all flex items-center justify-center gap-1 ${
+                    isRequested 
+                    ? "bg-green-500 text-white hover:bg-green-500 cursor-default shadow-md shadow-green-100" 
+                    : "bg-primary hover:bg-[#B45309] text-white shadow-md shadow-amber-600/10"
+                  }`}
+                >
+                  {isRequested ? "Sent ✓" : <>Request 🐾 <ChevronDown className="w-3 h-3" /></>}
+                </Button>
+              </DropdownMenuTrigger>
+              {!isRequested && (
+                <DropdownMenuContent className="rounded-xl border-amber-100 p-2 min-w-[150px]">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest p-2 mb-1">Request Playdate for:</p>
+                  {myDogs.map(myDog => (
+                    <DropdownMenuItem 
+                      key={myDog.id}
+                      onClick={() => onRequest(myDog.id)}
+                      className="flex items-center gap-2 p-2 rounded-lg cursor-pointer hover:bg-amber-50 transition-colors"
+                    >
+                      <Avatar className="w-6 h-6 border border-amber-100">
+                        <AvatarImage src={myDog.dog_photo} />
+                        <AvatarFallback className="text-[8px] bg-amber-100">{myDog.name[0]}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-bold text-secondary">{myDog.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              )}
+            </DropdownMenu>
+          ) : (
+            <Button 
+              disabled={isRequested}
+              onClick={() => onRequest(activeDog?.id)}
+              className={`h-10 px-2 text-[11px] font-bold rounded-xl transition-all ${
+                isRequested 
+                ? "bg-green-500 text-white hover:bg-green-500 cursor-default shadow-md shadow-green-100" 
+                : "bg-primary hover:bg-[#B45309] text-white shadow-md shadow-amber-600/10"
+              }`}
+            >
+              {isRequested ? "Sent ✓" : `Request for ${activeDog?.name} 🐾`}
+            </Button>
+          )}
 
           <Button 
             onClick={onContact}

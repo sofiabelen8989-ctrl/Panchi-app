@@ -2,13 +2,24 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { DachshundLogo } from "./Logo";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin } from "lucide-react";
+import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin, ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "../lib/supabaseClient";
 import { useEffect, useState } from "react";
+import { useDog } from "../contexts/DogContext";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function Navbar() {
   const navigate = useNavigate();
+  const { myDogs, activeDog, setActiveDog } = useDog();
   const [ownerName, setOwnerName] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -97,21 +108,83 @@ export function Navbar() {
           </NavLink>
           
           {session ? (
-            <div className="flex items-center gap-4">
-              <NavLink to="/feed" className="flex items-center gap-2 group p-1">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-primary border border-amber-200">
-                  <User className="w-4 h-4" />
+            <div className="flex items-center gap-6">
+              {myDogs.length > 0 && activeDog && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center gap-3 p-1.5 pr-4 rounded-full bg-amber-50 border border-amber-100 hover:bg-amber-100/50 transition-colors group focus:outline-none focus:ring-2 focus:ring-primary/20">
+                      <div className="relative">
+                        <Avatar className="h-9 w-9 rounded-full border-2 border-white shadow-sm overflow-hidden animate-in zoom-in-50 duration-500">
+                          {activeDog.dog_photo ? (
+                            <AvatarImage src={activeDog.dog_photo} className="object-cover" />
+                          ) : (
+                            <AvatarFallback className="bg-amber-200 text-amber-700 text-xs font-bold uppercase tracking-tighter">
+                              {activeDog.name.substring(0, 2)}
+                            </AvatarFallback>
+                          )}
+                        </Avatar>
+                        <div className="absolute -bottom-1 -right-1 bg-green-500 w-3.5 h-3.5 rounded-full border-2 border-white shadow-sm" />
+                      </div>
+                      <div className="flex flex-col items-start leading-tight">
+                        <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest px-0.5">Active Dog</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-secondary font-bold text-sm tracking-tight">{activeDog.name}</span>
+                          <ChevronDown className="h-3 w-3 text-secondary/40 group-hover:text-secondary group-hover:translate-y-0.5 transition-all" />
+                        </div>
+                      </div>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 p-2 rounded-[1.5rem] mt-1 border-amber-100 shadow-2xl bg-white/95 backdrop-blur-md">
+                    <DropdownMenuLabel className="px-3 py-3 text-xs font-black text-secondary tracking-widest uppercase opacity-40">Switch Active Dog</DropdownMenuLabel>
+                    <div className="space-y-1">
+                      {myDogs.map(dog => (
+                        <DropdownMenuItem 
+                          key={dog.id} 
+                          onClick={() => setActiveDog(dog)}
+                          className={cn(
+                            "flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all",
+                            activeDog.id === dog.id ? "bg-amber-50 text-amber-700" : "hover:bg-gray-50 hover:pl-3.5"
+                          )}
+                        >
+                          <Avatar className="h-8 w-8 rounded-full border border-gray-100 overflow-hidden shrink-0">
+                            {dog.dog_photo ? (
+                              <AvatarImage src={dog.dog_photo} className="object-cover" />
+                            ) : (
+                              <AvatarFallback className="bg-amber-100 text-[10px] font-bold">{dog.name[0]}</AvatarFallback>
+                            )}
+                          </Avatar>
+                          <span className="font-bold flex-grow text-sm">{dog.name}</span>
+                          {activeDog.id === dog.id && <Check className="h-4 w-4 text-primary" />}
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                    <DropdownMenuSeparator className="my-2 bg-amber-50" />
+                    <DropdownMenuItem 
+                      onClick={() => navigate('/my-dogs')}
+                      className="p-2.5 rounded-xl text-xs font-bold text-secondary/60 hover:text-primary hover:bg-amber-50/50 justify-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <LayoutGrid className="h-3.5 w-3.5" /> Manage Pack
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
+              <div className="flex items-center gap-4 border-l border-amber-100 pl-6 ml-2">
+                <div className="flex items-center gap-3 group px-4 py-2 rounded-full hover:bg-gray-50 transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-primary border border-amber-200">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <span className="text-secondary font-bold text-sm tracking-tight">{ownerName || "My Profile"}</span>
                 </div>
-                <span className="text-secondary font-bold text-sm">{ownerName || "My Profile"}</span>
-              </NavLink>
-              <Button 
-                onClick={handleLogout}
-                variant="ghost"
-                size="sm"
-                className="text-secondary/60 hover:text-red-500 hover:bg-red-50 rounded-full"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+                <Button 
+                  onClick={handleLogout}
+                  variant="ghost"
+                  size="sm"
+                  className="text-secondary/30 hover:text-red-500 hover:bg-red-50 rounded-full transition-all group"
+                >
+                  <LogOut className="w-4 h-4 group-hover:scale-110" />
+                </Button>
+              </div>
             </div>
           ) : (
             <Button 
@@ -196,7 +269,7 @@ export function BottomNav() {
         } 
         label="Inbox" 
       />
-      <BottomNavLink to="/profile/me" icon={<DogIcon className="w-6 h-6" />} label="My Dog" />
+      <BottomNavLink to="/my-dogs" icon={<DogIcon className="w-6 h-6" />} label="My Pack" />
     </nav>
   );
 }
