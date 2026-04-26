@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { DachshundLogo } from "../components/Logo";
+import { PanchiLogo } from "../components/PanchiLogo";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -80,7 +80,7 @@ export function Auth() {
       <Card className="w-full max-w-md rounded-[2.5rem] shadow-2xl border-none overflow-hidden bg-white">
         <CardHeader className="pt-10 space-y-2 text-center">
           <div className="flex justify-center mb-4">
-            <DachshundLogo className="h-24 w-24 rounded-full shadow-lg" />
+            <PanchiLogo size="xl" showText={false} />
           </div>
           <CardTitle className="text-3xl font-black text-secondary tracking-tight">
             {isSignUp ? "Join Panchi 🐾" : "Welcome Back!"}
