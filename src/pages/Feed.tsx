@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { formatDogAge } from "@/lib/utils";
 
 export function Feed() {
   const { activeDog, myDogs } = useDog();
@@ -290,7 +291,7 @@ function DogFeedCard({
         >
           {dog.name}
         </h3>
-        <p className="text-amber-800/60 font-semibold text-xs mb-3">{dog.breed} • {dog.age} years</p>
+        <p className="text-amber-800/60 font-semibold text-xs mb-3">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
         <div className="flex flex-wrap gap-1.5">
           {dog.personality_tags?.slice(0, 2).map((tag: string) => (
             <span key={tag} className="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-md border border-amber-100">

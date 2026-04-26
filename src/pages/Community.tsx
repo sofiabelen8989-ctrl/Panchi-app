@@ -587,23 +587,27 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl rounded-[3rem] p-0 overflow-hidden border-amber-100 shadow-2xl">
-        <DialogHeader className="p-8 pt-10 pb-4">
-          <DialogTitle className="text-3xl font-black text-secondary tracking-tight">Share a moment 📸</DialogTitle>
-          <DialogDescription className="text-amber-800/60 font-medium">Capture a memory and share it with the pack.</DialogDescription>
-        </DialogHeader>
+         <DialogContent className="flex flex-col max-h-[95vh] h-[95vh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 overflow-hidden rounded-[3rem] border-amber-100 shadow-2xl">
+        {/* STICKY HEADER */}
+        <div className="flex-shrink-0 flex items-center justify-between px-8 py-6 border-b border-amber-100 bg-white">
+          <div>
+            <DialogTitle className="text-2xl sm:text-3xl font-black text-secondary tracking-tight">Share a moment 📸</DialogTitle>
+            <DialogDescription className="text-amber-800/60 font-medium text-xs sm:text-sm">Capture a memory and share it with the pack.</DialogDescription>
+          </div>
+        </div>
 
-        <div className="p-8 pt-4 space-y-8">
+        {/* SCROLLABLE CONTENT AREA */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-8 py-6 space-y-6">
           {!photo ? (
             <div 
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square md:aspect-[4/3] w-full border-4 border-dashed border-amber-100 rounded-[2.5rem] bg-amber-50/30 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-50 hover:border-primary transition-all duration-300 group"
+              className="w-full h-40 sm:h-56 border-2 border-dashed border-amber-300 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-amber-500 hover:bg-amber-50 transition-colors bg-amber-50/50 group"
             >
-              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform">
-                <PawPrint className="w-10 h-10 text-amber-200" />
+              <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                <PawPrint className="w-6 h-6 text-amber-200" />
               </div>
-              <p className="text-xl font-black text-secondary mb-2 tracking-tight">Upload your dog's photo</p>
-              <p className="text-amber-800/40 font-bold uppercase text-[10px] tracking-widest px-8 text-center">Tap here or drag & drop high-quality puppy photos</p>
+              <p className="text-base font-black text-secondary mb-1 tracking-tight">Upload dog photo</p>
+              <p className="text-amber-800/40 font-bold uppercase text-[8px] tracking-widest px-4 text-center">Tap here or drag & drop high-quality puppy photos</p>
               <input 
                 type="file" 
                 ref={fileInputRef} 
@@ -613,44 +617,45 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
               />
             </div>
           ) : (
-            <div className="relative aspect-square md:aspect-[4/3] w-full rounded-[2.5rem] overflow-hidden group shadow-2xl border border-amber-100">
+            <div className="relative w-full h-40 sm:h-56 rounded-2xl overflow-hidden group shadow-lg border border-amber-100">
               <img src={photo} className="w-full h-full object-cover" alt="Selected" />
               <button 
                 onClick={() => setPhoto(null)}
-                className="absolute top-4 right-4 bg-white/90 backdrop-blur-md p-3 rounded-full text-secondary shadow-lg hover:bg-red-50 hover:text-red-500 transition-all border border-amber-100"
+                className="absolute top-2 right-2 bg-white/90 backdrop-blur-md p-2 rounded-full text-secondary shadow-lg hover:bg-red-50 hover:text-red-500 transition-all border border-amber-100"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           )}
 
-          <div className="space-y-6">
-            <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="space-y-2">
               <div className="flex justify-between items-end px-1">
                 <label className="text-[10px] font-black uppercase text-secondary tracking-widest">Caption</label>
-                <span className={cn("text-[9px] font-bold uppercase", caption.length > 280 ? "text-red-500" : "text-amber-800/30")}>
+                <span className={cn("text-[8px] font-bold uppercase", caption.length > 280 ? "text-red-500" : "text-amber-800/30")}>
                   {caption.length} / 300
                 </span>
               </div>
-              <Textarea 
+              <textarea
+                rows={2}
                 placeholder="What is your pup doing? #naptime #zoomies"
                 value={caption}
                 onChange={(e) => setCaption(e.target.value.slice(0, 300))}
-                className="rounded-2xl border-amber-100 focus-visible:ring-primary bg-amber-50/10 min-h-[100px] text-lg font-medium p-6 resize-none transition-all"
+                className="w-full resize-none rounded-xl border border-amber-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-gray-300 bg-amber-50/10 font-medium transition-all"
               />
             </div>
 
             {myDogs.length > 0 && (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-secondary tracking-widest px-1">Posting as:</label>
                 <Select value={selectedDogId} onValueChange={setSelectedDogId}>
-                  <SelectTrigger className="w-full h-16 rounded-[1.5rem] border-amber-100 focus:ring-primary bg-white text-lg font-bold text-secondary px-4 shadow-sm">
+                  <SelectTrigger className="w-full h-14 rounded-xl border-amber-200 focus:ring-amber-400 bg-white text-sm font-bold text-secondary px-4 shadow-sm">
                     <SelectValue>
                       {selectedDogId && (
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8 rounded-full overflow-hidden shrink-0 border border-amber-50 shadow-sm">
+                          <Avatar className="h-6 w-6 rounded-full overflow-hidden shrink-0 border border-amber-50 shadow-sm">
                             <AvatarImage src={myDogs.find(d => d.id === selectedDogId)?.dog_photo || ""} className="object-cover" />
-                            <AvatarFallback className="bg-amber-100 text-[10px] font-bold">
+                            <AvatarFallback className="bg-amber-100 text-[8px] font-bold">
                               {myDogs.find(d => d.id === selectedDogId)?.name?.[0]}
                             </AvatarFallback>
                           </Avatar>
@@ -664,12 +669,12 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
                       <SelectItem 
                         key={dog.id} 
                         value={dog.id} 
-                        className="rounded-xl font-bold h-14 cursor-pointer focus:bg-amber-50 mb-1"
+                        className="rounded-xl font-bold h-12 cursor-pointer focus:bg-amber-50 mb-1"
                       >
                         <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 rounded-full overflow-hidden shrink-0 border border-white shadow-sm">
+                          <Avatar className="h-8 w-8 rounded-full overflow-hidden shrink-0 border border-white shadow-sm">
                             <AvatarImage src={dog.dog_photo || ""} className="object-cover" />
-                            <AvatarFallback className="bg-amber-100 text-[10px] font-bold">{dog.name[0]}</AvatarFallback>
+                            <AvatarFallback className="bg-amber-100 text-[8px] font-bold">{dog.name[0]}</AvatarFallback>
                           </Avatar>
                           <span className="text-secondary font-bold">{dog.name}</span>
                         </div>
@@ -682,22 +687,27 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
           </div>
         </div>
 
-        <DialogFooter className="p-8 bg-amber-50/30 border-t border-amber-100 gap-4 sm:flex-row flex-col">
-          <Button 
-            variant="outline" 
-            onClick={() => setIsOpen(false)}
-            className="rounded-full border-amber-100 font-bold px-8 h-14 text-lg w-full sm:w-auto hover:bg-white"
-          >
-            Cancel
-          </Button>
+        {/* STICKY FOOTER */}
+        <div className="flex-shrink-0 p-8 bg-white border-t border-amber-100 safe-area-inset-bottom">
           <Button 
             onClick={handleSubmit}
             disabled={!photo || !selectedDogId || loading}
-            className="rounded-full bg-primary hover:bg-[#B45309] text-white font-black px-10 h-14 text-lg shadow-xl shadow-amber-600/20 flex-1 w-full sm:w-auto"
+            className={`w-full py-3 rounded-2xl font-bold text-white text-base transition-all h-14 shadow-xl ${
+              !photo || !selectedDogId || loading
+                ? 'bg-amber-300 cursor-not-allowed shadow-none'
+                : 'bg-amber-600 hover:bg-amber-700 active:scale-95 shadow-amber-600/20'
+            }`}
           >
-            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Share with the pack 🐾"}
+            {loading ? <Loader2 className="w-6 h-6 animate-spin mx-auto" /> : "Share with the pack 🐾"}
           </Button>
-        </DialogFooter>
+          <Button 
+            variant="ghost" 
+            onClick={() => setIsOpen(false)}
+            className="w-full mt-2 text-amber-800/40 font-bold text-xs"
+          >
+            Cancel
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

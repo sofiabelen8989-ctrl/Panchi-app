@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Loader2, MessageCircle, User, Navigation, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatDogAge } from '@/lib/utils';
 
 // Fix for Leaflet default icon issues in some build environments
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -287,7 +287,7 @@ export default function MapComponent({ userLocation }: MapProps) {
                   <img src={dog.dog_photo} className="w-full h-full object-cover" alt={dog.name} />
                 </div>
                 <h4 className="font-black text-secondary text-lg mb-1">{dog.name}</h4>
-                <p className="text-xs font-bold text-amber-800/60 mb-2 uppercase tracking-wide">{dog.breed}</p>
+                <p className="text-[10px] font-bold text-amber-800/60 mb-2 uppercase tracking-wide">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
                 <div className="flex items-center gap-1.5 text-xs font-black text-primary mb-5">
                    <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center">📍</div>
                    {dog.distance_km.toFixed(1)} km away
@@ -346,7 +346,7 @@ export default function MapComponent({ userLocation }: MapProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-black text-secondary truncate">{dog.name}</h4>
-                  <p className="text-[10px] font-bold text-amber-800/40 uppercase tracking-wider">{dog.breed}</p>
+                  <p className="text-[10px] font-bold text-amber-800/40 uppercase tracking-wider">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
                   <p className="text-[10px] font-black text-primary mt-1">📍 {dog.distance_km.toFixed(1)} km away</p>
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-full text-primary h-10 w-10 shrink-0">

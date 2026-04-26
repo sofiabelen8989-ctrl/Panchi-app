@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { formatDogAge } from "@/lib/utils";
 
 export function Home() {
   const navigate = useNavigate();
@@ -104,7 +104,7 @@ export function Home() {
                 key={dog.id} 
                 name={dog.name}
                 breed={dog.breed}
-                age={dog.age + " years"}
+                age={formatDogAge(dog.age, dog.age_unit)}
                 personality={dog.personality_tags || []}
                 distance={"Nearby"}
                 imageUrl={dog.dog_photo || 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&q=80'}

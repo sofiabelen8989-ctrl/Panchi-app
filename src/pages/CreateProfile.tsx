@@ -28,18 +28,51 @@ export function CreateProfile() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [ageValue, setAgeValue] = useState('');
+  const [ageUnit, setAgeUnit] = useState('years');
   const [formData, setFormData] = useState<any>({
     personality: [],
     size: 'Medium',
     energyLevel: 'Playful',
     name: '',
     breed: '',
-    age: '',
+    age: null,
+    age_unit: 'years',
     ownerFirstName: '',
     city: '',
     latitude: null,
     longitude: null
   });
+
+  const handleAgeChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '') {
+      setAgeValue('');
+      updateFormData({ age: null, age_unit: ageUnit });
+      return;
+    }
+    const num = parseInt(val);
+    if (isNaN(num) || num < 0) return;
+    
+    // Validate max based on unit
+    if (ageUnit === 'months' && num > 11) return;
+    if (ageUnit === 'years' && num > 25) return;
+    
+    setAgeValue(String(num));
+    updateFormData({
+      age: num,
+      age_unit: ageUnit
+    });
+  }
+
+  const handleUnitToggle = (unit: string) => {
+    setAgeUnit(unit);
+    setAgeValue('');
+    updateFormData({
+      age: null,
+      age_unit: unit
+    });
+  }
 
   const [dogPhoto, setDogPhoto] = useState<string>('');
   const [ownerPhoto, setOwnerPhoto] = useState<string>('');
@@ -90,7 +123,19 @@ export function CreateProfile() {
 
   const updateFormData = (data: any) => setFormData(prev => ({ ...prev, ...data }));
 
-  const nextStep = () => setStep(prev => prev + 1);
+  const nextStep = () => {
+    if (step === 1) {
+      if (!formData.name) {
+        toast.error("Please add your dog's name 🐾");
+        return;
+      }
+      if (formData.age === null) {
+        toast.error("Please add your dog's age 🐾");
+        return;
+      }
+    }
+    setStep(prev => prev + 1);
+  };
   const prevStep = () => setStep(prev => prev - 1);
 
   const handleSubmit = async () => {
@@ -115,7 +160,8 @@ export function CreateProfile() {
         owner_id: user.id,
         name: formData.name,
         breed: formData.breed,
-        age: parseInt(formData.age) || 0,
+        age: formData.age,
+        age_unit: formData.age_unit || 'years',
         size: formData.size,
         energy_level: formData.energyLevel,
         personality_tags: formData.personality,
@@ -205,17 +251,61 @@ export function CreateProfile() {
                         />
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="age" className="font-bold text-secondary">Age</Label>
-                        <Input 
-                          id="age" 
-                          placeholder="e.g. 2 years" 
-                          className="rounded-xl border-amber-100" 
-                          value={formData.age || ''}
-                          onChange={e => updateFormData({ age: e.target.value })}
-                        />
+                        <label className="text-sm font-bold text-secondary">
+                          How old is your dog?
+                        </label>
+
+                        <div className="flex gap-3 items-center">
+                          {/* Age number input */}
+                          <input
+                            type="number"
+                            value={ageValue}
+                            onChange={handleAgeChange}
+                            placeholder={
+                              ageUnit === 'months' ? '0 - 11' : '1 - 25'
+                            }
+                            className="w-28 h-12 px-4 rounded-xl border-2 border-amber-100 bg-white text-center text-lg font-semibold text-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-gray-300 placeholder:font-normal placeholder:text-sm shadow-sm"
+                          />
+
+                          {/* Unit toggle buttons */}
+                          <div className="flex rounded-xl overflow-hidden border-2 border-amber-100">
+                            <button
+                              type="button"
+                              onClick={() => handleUnitToggle('months')}
+                              className={`px-4 py-3 text-sm font-bold transition-colors ${
+                                ageUnit === 'months'
+                                  ? 'bg-amber-600 text-white'
+                                  : 'bg-white text-amber-700 hover:bg-amber-50'
+                              }`}
+                            >
+                              Months
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUnitToggle('years')}
+                              className={`px-4 py-3 text-sm font-bold transition-colors border-l-2 border-amber-100 ${
+                                ageUnit === 'years'
+                                  ? 'bg-amber-600 text-white'
+                                  : 'bg-white text-amber-700 hover:bg-amber-50'
+                              }`}
+                            >
+                              Years
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Helper text changes based on unit */}
+                        <p className="text-xs text-amber-500 font-medium italic">
+                          {ageUnit === 'months' 
+                            ? '🐾 For puppies under 1 year old (0-11 months)'
+                            : '🐾 Enter your dog\'s age in years (1-25)'
+                          }
+                        </p>
                       </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 pt-2">
                       <div className="space-y-2">
                         <Label className="font-bold text-secondary">Size</Label>
                         <RadioGroup 

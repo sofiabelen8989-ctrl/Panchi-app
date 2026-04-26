@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowLeft, Send, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatDogAge } from "@/lib/utils";
 
 export function Chat() {
   const { conversationId } = useParams();
@@ -80,8 +80,8 @@ export function Chat() {
         .from('conversations')
         .select(`
           id,
-          dog_one:dog_one_id(id, name, dog_photo, owners(first_name, owner_photo)),
-          dog_two:dog_two_id(id, name, dog_photo, owners(first_name, owner_photo))
+          dog_one:dog_one_id(id, name, dog_photo, age, age_unit, owners(first_name, owner_photo)),
+          dog_two:dog_two_id(id, name, dog_photo, age, age_unit, owners(first_name, owner_photo))
         `)
         .eq('id', conversationId)
         .single();
@@ -190,7 +190,7 @@ export function Chat() {
           <div>
             <h2 className="text-lg font-black text-secondary tracking-tight leading-tight">{otherDog?.name}</h2>
             <p className="text-[10px] uppercase font-bold text-amber-800/40 tracking-wider">
-              Owner: {otherDog?.owners?.first_name}
+              {formatDogAge(otherDog?.age, otherDog?.age_unit)} • Owner: {otherDog?.owners?.first_name}
             </p>
           </div>
         </div>

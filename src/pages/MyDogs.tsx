@@ -23,7 +23,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatDogAge } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -55,15 +55,50 @@ export default function MyDogs() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentDogId, setCurrentDogId] = useState<string | null>(null);
   const [step, setStep] = useState(1);
+  const [ageValue, setAgeValue] = useState('');
+  const [ageUnit, setAgeUnit] = useState('years');
   const [formData, setFormData] = useState({
     name: '',
     breed: '',
-    age: 0,
+    age: null as number | null,
+    age_unit: 'years',
     size: 'medium',
     energy_level: 'playful',
     personality_tags: [] as string[],
     dog_photo: null as string | null
   });
+
+  const handleAgeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (val === '') {
+      setAgeValue('');
+      setFormData(prev => ({ ...prev, age: null, age_unit: ageUnit }));
+      return;
+    }
+    const num = parseInt(val);
+    if (isNaN(num) || num < 0) return;
+    
+    // Validate max based on unit
+    if (ageUnit === 'months' && num > 11) return;
+    if (ageUnit === 'years' && num > 25) return;
+    
+    setAgeValue(String(num));
+    setFormData(prev => ({
+      ...prev, 
+      age: num,
+      age_unit: ageUnit
+    }));
+  };
+
+  const handleUnitToggle = (unit: string) => {
+    setAgeUnit(unit);
+    setAgeValue('');
+    setFormData(prev => ({
+      ...prev,
+      age: null,
+      age_unit: unit
+    }));
+  };
 
   // Automatically open modal if no dogs
   useEffect(() => {
@@ -75,10 +110,13 @@ export default function MyDogs() {
   const handleAddNew = () => {
     setIsEditMode(false);
     setCurrentDogId(null);
+    setAgeValue('');
+    setAgeUnit('years');
     setFormData({
       name: '',
       breed: '',
-      age: 0,
+      age: null,
+      age_unit: 'years',
       size: 'medium',
       energy_level: 'playful',
       personality_tags: [],
@@ -91,10 +129,13 @@ export default function MyDogs() {
   const handleEdit = (dog: any) => {
     setIsEditMode(true);
     setCurrentDogId(dog.id);
+    setAgeValue(String(dog.age ?? ''));
+    setAgeUnit(dog.age_unit || 'years');
     setFormData({
       name: dog.name,
       breed: dog.breed,
       age: dog.age,
+      age_unit: dog.age_unit || 'years',
       size: dog.size,
       energy_level: dog.energy_level,
       personality_tags: dog.personality_tags,
@@ -134,6 +175,7 @@ export default function MyDogs() {
         name: formData.name,
         breed: formData.breed,
         age: formData.age,
+        age_unit: formData.age_unit,
         size: formData.size,
         energy_level: formData.energy_level,
         personality_tags: formData.personality_tags,
@@ -292,7 +334,7 @@ export default function MyDogs() {
                             {dog.energy_level}
                           </Badge>
                         </div>
-                        <p className="text-muted-foreground font-semibold mt-0.5">{dog.breed} • {dog.age} years</p>
+                        <p className="text-muted-foreground font-semibold mt-0.5">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
                       </div>
 
                       <div className="flex flex-wrap gap-2">
@@ -336,13 +378,13 @@ export default function MyDogs() {
 
       {/* Add/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl max-h-[90vh] flex flex-col">
+        <DialogContent className="flex flex-col max-h-[95vh] h-[95vh] sm:h-auto sm:max-h-[90vh] p-0 gap-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl">
           {/* Sticky Header */}
-          <div className="bg-amber-500 p-8 text-white relative sticky top-0 z-10">
+          <div className="flex-shrink-0 bg-amber-500 p-8 text-white relative">
             <DialogTitle className="text-3xl font-black tracking-tight">
               {isEditMode ? `Update ${formData.name}'s Profile` : 'Add New Dog 🐾'}
             </DialogTitle>
-            <DialogDescription className="text-white/80 font-medium mt-1">
+            <DialogDescription className="text-white/80 font-medium mt-1 text-xs">
               {isEditMode ? 'Keep your pup\'s information up to date!' : 'Tell us all about your furry friend.'}
             </DialogDescription>
             <div className="absolute -bottom-6 right-6 w-16 h-16 bg-white rounded-full shadow-lg flex items-center justify-center text-3xl">
@@ -350,9 +392,9 @@ export default function MyDogs() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-8 py-8 space-y-6 bg-white">
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <div className="flex justify-between items-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                 <span>Step {step} of 3</span>
                 <span>{Math.round((step / 3) * 100)}% Complete</span>
               </div>
@@ -370,7 +412,7 @@ export default function MyDogs() {
                         placeholder="e.g. Buddy" 
                         value={formData.name}
                         onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        className="rounded-xl border-2 border-gray-100 focus:border-amber-500 h-12 font-medium"
+                        className="rounded-xl border-2 border-gray-100 focus:border-amber-500 h-10 font-medium text-sm"
                       />
                     </div>
                     
@@ -382,27 +424,53 @@ export default function MyDogs() {
                         placeholder="e.g. Dachshund" 
                         value={formData.breed}
                         onChange={(e) => setFormData(prev => ({ ...prev, breed: e.target.value }))}
-                        className="rounded-xl border-2 border-gray-100 focus:border-amber-500 h-12 font-medium"
+                        className="rounded-xl border-2 border-gray-100 focus:border-amber-500 h-10 font-medium text-sm"
                       />
                       <datalist id="breeds-list">
                         {BREEDS.map(breed => <option key={breed} value={breed} />)}
                       </datalist>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="age" className="text-sm font-bold text-secondary">Age (Years)</Label>
-                        <Input 
-                          id="age" 
-                          type="number"
-                          min="0"
-                          max="20"
-                          value={formData.age}
-                          onChange={(e) => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
-                          className="rounded-xl border-2 border-gray-100 focus:border-amber-500 h-12 font-bold"
-                        />
-                      </div>
-                      <div className="grid gap-2">
+                    <div className="grid grid-cols-1 gap-2 pt-2">
+                       <Label className="text-sm font-bold text-secondary">How old is your dog?</Label>
+                       <div className="flex gap-3 items-center">
+                          <input
+                            type="number"
+                            value={ageValue}
+                            onChange={handleAgeChange}
+                            placeholder={
+                              ageUnit === 'months' ? '0-11' : '1-25'
+                            }
+                            className="w-20 h-10 px-4 rounded-xl border-2 border-gray-100 focus:border-amber-500 text-center font-bold text-sm"
+                          />
+                          <div className="flex rounded-xl overflow-hidden border-2 border-gray-100">
+                            <button
+                              type="button"
+                              onClick={() => handleUnitToggle('months')}
+                              className={`px-3 py-2 text-[10px] font-black transition-colors ${
+                                ageUnit === 'months'
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-white text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              MONTHS
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUnitToggle('years')}
+                              className={`px-3 py-2 text-[10px] font-black transition-colors border-l-2 border-gray-100 ${
+                                ageUnit === 'years'
+                                  ? 'bg-amber-500 text-white'
+                                  : 'bg-white text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              YEARS
+                            </button>
+                          </div>
+                       </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 gap-2">
                         <Label className="text-sm font-bold text-secondary">Size</Label>
                         <RadioGroup 
                           value={formData.size} 
@@ -412,11 +480,11 @@ export default function MyDogs() {
                           {['small', 'medium', 'large'].map((s) => (
                             <Label key={s} className={cn(
                               "flex-1 flex flex-col items-center gap-1 p-2 rounded-xl border-2 cursor-pointer transition-all",
-                              formData.size === s ? "border-amber-500 bg-amber-50" : "border-gray-100 hover:bg-gray-50"
+                              formData.size === s ? "border-amber-500 bg-amber-50 text-amber-500" : "border-gray-100 hover:bg-gray-50"
                             )}>
                               <RadioGroupItem value={s} className="sr-only" />
-                              <span className="text-lg">{s === 'small' ? '🐭' : s === 'medium' ? '🐕' : '🦮'}</span>
-                              <span className="text-[10px] font-bold uppercase">{s}</span>
+                              <span className="text-xl">{s === 'small' ? '🐭' : s === 'medium' ? '🐕' : '🦮'}</span>
+                              <span className="text-[10px] font-black uppercase tracking-tighter">{s}</span>
                             </Label>
                           ))}
                         </RadioGroup>
@@ -428,18 +496,18 @@ export default function MyDogs() {
                       <RadioGroup 
                         value={formData.energy_level} 
                         onValueChange={(val) => setFormData(prev => ({ ...prev, energy_level: val }))}
-                        className="grid grid-cols-3 gap-3"
+                        className="grid grid-cols-3 gap-2"
                       >
                         {['calm', 'playful', 'high energy'].map((level) => (
                           <Label key={level} className={cn(
-                            "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 cursor-pointer transition-all text-center",
+                            "flex flex-col items-center gap-1 p-2 rounded-xl border-2 cursor-pointer transition-all text-center",
                             formData.energy_level === level 
                               ? "border-amber-500 bg-amber-50 text-amber-700" 
                               : "border-gray-100 text-gray-500 hover:bg-gray-50"
                           )}>
                             <RadioGroupItem value={level} className="sr-only" />
                             <span className="text-xl">{level === 'calm' ? '😴' : level === 'playful' ? '🎾' : '⚡'}</span>
-                            <span className="text-[10px] font-black uppercase leading-tight">{level}</span>
+                            <span className="text-[10px] font-black uppercase leading-none">{level}</span>
                           </Label>
                         ))}
                       </RadioGroup>
@@ -448,15 +516,15 @@ export default function MyDogs() {
                     <div className="grid gap-2">
                       <Label className="text-sm font-bold text-secondary">Dog Photo</Label>
                       <div 
-                        className="relative h-40 w-full rounded-2xl border-2 border-dashed border-gray-200 hover:border-amber-300 transition-colors cursor-pointer group bg-gray-50 overflow-hidden"
+                        className="relative h-32 w-full rounded-2xl border-2 border-dashed border-gray-200 hover:border-amber-300 transition-colors cursor-pointer group bg-gray-50 overflow-hidden"
                         onClick={() => document.getElementById('photo-upload')?.click()}
                       >
                         {formData.dog_photo ? (
                           <img src={formData.dog_photo} alt="Preview" className="w-full h-full object-cover" />
                         ) : (
-                          <div className="h-full flex flex-col items-center justify-center gap-2 text-muted-foreground group-hover:text-amber-500">
-                            <Camera className="h-8 w-8" />
-                            <span className="text-xs font-bold uppercase">Upload Photo</span>
+                          <div className="h-full flex flex-col items-center justify-center gap-1 text-muted-foreground group-hover:text-amber-500">
+                            <Camera className="h-6 w-6" />
+                            <span className="text-[10px] font-black uppercase">Upload Photo</span>
                           </div>
                         )}
                         <Input 
@@ -469,8 +537,7 @@ export default function MyDogs() {
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {step === 2 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
@@ -516,7 +583,7 @@ export default function MyDogs() {
                       </div>
                       <div className="space-y-1">
                         <h4 className="text-2xl font-black text-secondary">{formData.name}</h4>
-                        <p className="text-sm font-bold text-muted-foreground">{formData.breed} • {formData.age} years</p>
+                        <p className="text-sm font-bold text-muted-foreground">{formData.breed} • {formatDogAge(formData.age, formData.age_unit)}</p>
                         <div className="flex gap-2 pt-1">
                           <Badge className={cn("text-[10px] font-black uppercase", getEnergyColor(formData.energy_level))}>
                             {formData.energy_level}
@@ -575,7 +642,7 @@ export default function MyDogs() {
           </div>
 
           {/* Sticky Footer */}
-          <DialogFooter className="p-8 bg-gray-50 flex border-t border-gray-100 sticky bottom-0 z-10 w-full rounded-b-[2.5rem]">
+          <DialogFooter className="p-8 bg-gray-50 flex border-t border-gray-100 safe-area-inset-bottom w-full rounded-b-[2.5rem]">
             <div className="flex justify-between w-full gap-4">
               {step > 1 ? (
                 <Button 
@@ -589,8 +656,20 @@ export default function MyDogs() {
               
               {step < 3 ? (
                 <Button 
-                  onClick={() => setStep(step + 1)}
-                  disabled={!formData.name || (step === 2 && formData.personality_tags.length === 0)}
+                  onClick={() => {
+                    if (step === 1) {
+                      if (!formData.name) {
+                        toast.error("Please add your dog's name 🐾");
+                        return;
+                      }
+                      if (formData.age === null) {
+                        toast.error("Please add your dog's age 🐾");
+                        return;
+                      }
+                    }
+                    setStep(step + 1);
+                  }}
+                  disabled={!formData.name}
                   className="flex-grow rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black h-14 shadow-lg shadow-amber-200 text-lg transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   Continue <ChevronRight className="ml-2 h-6 w-6" />

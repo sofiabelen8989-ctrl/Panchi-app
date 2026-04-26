@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { PanchiLogo } from "../components/PanchiLogo";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 export function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
   const [firstName, setFirstName] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,6 +28,32 @@ export function Auth() {
   const [error, setError] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
   const navigate = useNavigate();
+
+  const getPasswordStrength = (pass: string) => {
+    if (pass.length === 0) return { score: 0, label: '', color: '' }
+    if (pass.length < 6) return { score: 1, label: 'Too short', color: 'bg-red-400' }
+    
+    let score = 0
+    if (pass.length >= 8) score++
+    if (/[A-Z]/.test(pass)) score++
+    if (/[0-9]/.test(pass)) score++
+    if (/[^A-Za-z0-9]/.test(pass)) score++
+
+    if (score <= 1) return { score: 1, label: 'Weak', color: 'bg-red-400' }
+    if (score === 2) return { score: 2, label: 'Fair', color: 'bg-amber-400' }
+    if (score === 3) return { score: 3, label: 'Good', color: 'bg-yellow-400' }
+    return { score: 4, label: 'Strong 🐾', color: 'bg-green-400' }
+  }
+
+  const strength = getPasswordStrength(password);
+
+  useEffect(() => {
+    if (isSignUp && confirmPassword && password !== confirmPassword) {
+      setPasswordError('Passwords do not match');
+    } else {
+      setPasswordError('');
+    }
+  }, [password, confirmPassword, isSignUp]);
 
   const handleResendEmail = async () => {
     const { error: resendError } = await supabase.auth.resend({
@@ -44,6 +74,20 @@ export function Auth() {
 
     try {
       if (isSignUp) {
+        // Validate passwords match
+        if (password !== confirmPassword) {
+          setPasswordError('Passwords do not match')
+          setLoading(false)
+          return
+        }
+
+        // Validate minimum length
+        if (password.length < 6) {
+          setPasswordError('Password must be at least 6 characters')
+          setLoading(false)
+          return
+        }
+
         // 1. Create the auth account with metadata for the trigger
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
@@ -85,6 +129,9 @@ export function Auth() {
       setLoading(false);
     }
   };
+
+  const isSignupDisabled = !firstName || !neighborhood || !email || !password || !confirmPassword || password !== confirmPassword || password.length < 6 || loading;
+  const isLoginDisabled = !email || !password || loading;
 
   if (needsVerification) {
     return (
@@ -169,32 +216,32 @@ export function Auth() {
           <CardContent className="space-y-4">
             {isSignUp && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="firstName" className="font-bold text-secondary px-1 text-xs uppercase tracking-widest">First Name</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="firstName" className="text-xs font-semibold text-amber-800 uppercase tracking-wide px-1">First Name</Label>
                   <Input 
                     id="firstName" 
                     placeholder="Sofia" 
                     value={firstName} 
                     onChange={(e) => setFirstName(e.target.value)} 
                     required 
-                    className="rounded-xl border-amber-100 h-12 focus-visible:ring-primary"
+                    className="rounded-xl border-amber-200 h-12 focus-visible:ring-amber-400 focus:border-transparent placeholder:text-gray-300"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="neighborhood" className="font-bold text-secondary px-1 text-xs uppercase tracking-widest">Neighborhood / City</Label>
+                <div className="space-y-1">
+                  <Label htmlFor="neighborhood" className="text-xs font-semibold text-amber-800 uppercase tracking-wide px-1">Neighborhood / City</Label>
                   <Input 
                     id="neighborhood" 
                     placeholder="Barcelona" 
                     value={neighborhood} 
                     onChange={(e) => setNeighborhood(e.target.value)} 
                     required 
-                    className="rounded-xl border-amber-100 h-12 focus-visible:ring-primary"
+                    className="rounded-xl border-amber-200 h-12 focus-visible:ring-amber-400 focus:border-transparent placeholder:text-gray-300"
                   />
                 </div>
               </>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-bold text-secondary px-1 text-xs uppercase tracking-widest">Email Address</Label>
+            <div className="space-y-1">
+              <Label htmlFor="email" className="text-xs font-semibold text-amber-800 uppercase tracking-wide px-1">Email Address</Label>
               <Input 
                 id="email" 
                 type="email" 
@@ -202,34 +249,124 @@ export function Auth() {
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
                 required 
-                className="rounded-xl border-amber-100 h-12 focus-visible:ring-primary"
+                className="rounded-xl border-amber-200 h-12 focus-visible:ring-amber-400 focus:border-transparent placeholder:text-gray-300"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-bold text-secondary px-1 text-xs uppercase tracking-widest">Password</Label>
-              <Input 
-                id="password" 
-                type="password" 
-                placeholder="••••••••" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
-                className="rounded-xl border-amber-100 h-12 focus-visible:ring-primary"
-              />
+            <div className="space-y-1">
+              <Label htmlFor="password" className="text-xs font-semibold text-amber-800 uppercase tracking-wide px-1">Password</Label>
+              <div className="relative">
+                <Input 
+                  id="password" 
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  required 
+                  className="rounded-xl border-amber-200 h-12 pr-12 focus-visible:ring-amber-400 focus:border-transparent placeholder:text-gray-300"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-400 hover:text-amber-600 transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+
+              {isSignUp && password.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4].map((level) => (
+                      <div
+                        key={level}
+                        className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                          strength.score >= level ? strength.color : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-xs font-medium ${
+                    strength.score <= 1 ? 'text-red-400' : strength.score === 2 ? 'text-amber-500' : strength.score === 3 ? 'text-yellow-600' : 'text-green-500'
+                  }`}>
+                    {strength.label}
+                  </p>
+                </div>
+              )}
             </div>
+
+            {isSignUp && (
+              <div className="space-y-1">
+                <Label htmlFor="confirmPassword" className="text-xs font-semibold text-amber-800 uppercase tracking-wide px-1">Confirm Password</Label>
+                <div className="relative">
+                  <Input 
+                    id="confirmPassword" 
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Repeat your password" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                    required 
+                    className={`rounded-xl h-12 pr-12 focus-visible:ring-amber-400 focus:border-transparent placeholder:text-gray-300 ${
+                      passwordError ? 'border-red-300 focus-visible:ring-red-300' : 'border-amber-200'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-amber-400 hover:text-amber-600 transition-colors"
+                    tabIndex={-1}
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {passwordError && (
+                  <p className="text-red-400 text-xs flex items-center gap-1 mt-1">
+                    ⚠️ {passwordError}
+                  </p>
+                )}
+                {confirmPassword && !passwordError && (
+                  <p className="text-green-500 text-xs flex items-center gap-1 mt-1">
+                    ✓ Passwords match!
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
           <CardFooter className="flex flex-col gap-4 pb-10">
-            <Button 
-              type="submit" 
-              className="w-full h-12 rounded-2xl bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-lg shadow-amber-600/20 disabled:opacity-50"
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (isSignUp ? "Create Account" : "Sign In")}
-            </Button>
+            {isSignUp ? (
+              <Button 
+                type="submit" 
+                disabled={isSignupDisabled}
+                className={`w-full h-12 rounded-2xl font-black text-lg shadow-lg transition-all ${
+                  isSignupDisabled 
+                    ? 'bg-amber-300 cursor-not-allowed' 
+                    : 'bg-amber-600 hover:bg-amber-700 active:scale-95 shadow-amber-600/20 text-white'
+                }`}
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Join the Pack 🐾"}
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                disabled={isLoginDisabled}
+                className={`w-full h-12 rounded-2xl font-black text-lg shadow-lg transition-all ${
+                  isLoginDisabled 
+                    ? 'bg-amber-300 cursor-not-allowed' 
+                    : 'bg-amber-600 hover:bg-amber-700 active:scale-95 shadow-amber-600/20 text-white'
+                }`}
+              >
+                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Sign In 🐾"}
+              </Button>
+            )}
             <button 
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm font-bold text-amber-800/60 hover:text-primary transition-colors mt-2"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setPasswordError("");
+                setShowPassword(false);
+                setShowConfirmPassword(false);
+              }}
+              className="text-sm font-bold text-amber-800/60 hover:text-amber-600 transition-colors mt-2"
             >
               {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
             </button>

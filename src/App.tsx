@@ -11,6 +11,7 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState, ReactNode } from "react";
 import { Navbar, BottomNav } from "./components/PanchiUI";
+import { FloatingBot } from "./components/FloatingBot";
 import { Home } from "./pages/Home";
 import { Feed } from "./pages/Feed";
 import { Profile } from "./pages/Profile";
@@ -136,6 +137,7 @@ export default function App() {
           <Navbar />
           <AnimatedRoutes />
           <BottomNav />
+          <FloatingBot />
           
           <footer className="hidden md:block py-10 text-center border-t border-primary/10 bg-white/30 backdrop-blur-sm mt-10">
             <p className="text-secondary/50 text-sm font-medium">

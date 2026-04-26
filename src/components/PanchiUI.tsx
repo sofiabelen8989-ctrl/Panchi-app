@@ -2,7 +2,7 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { PanchiLogo } from "./PanchiLogo";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin, ChevronDown, Check } from "lucide-react";
+import { Home, Search, MessageCircle, Dog as DogIcon, LogOut, User, MessageSquare, LayoutGrid, MapPin, ChevronDown, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "../lib/supabaseClient";
 import { useEffect, useState } from "react";
@@ -249,26 +249,12 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-t border-amber-100 flex items-center justify-around py-3 px-2 safe-area-bottom">
-      <BottomNavLink to="/" icon={<Home className="w-6 h-6" />} label="Home" />
-      <BottomNavLink to="/feed" icon={<Search className="w-6 h-6" />} label="Feed" />
-      <BottomNavLink to="/map" icon={<MapPin className="w-6 h-6" />} label="Map" />
-      <BottomNavLink to="/community" icon={<LayoutGrid className="w-6 h-6" />} label="Community" />
-      <BottomNavLink 
-        to="/inbox" 
-        icon={
-          <div className="relative">
-            <MessageSquare className="w-6 h-6" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-primary text-white text-[8px] font-bold h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center border border-white">
-                {unreadCount}
-              </span>
-            )}
-          </div>
-        } 
-        label="Inbox" 
-      />
-      <BottomNavLink to="/my-dogs" icon={<DogIcon className="w-6 h-6" />} label="My Pack" />
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-amber-100 flex items-stretch justify-around h-16 safe-area-bottom">
+      <BottomNavLink to="/" icon={<Home className="w-5 h-5" />} label="Home" />
+      <BottomNavLink to="/feed" icon={<Search className="w-5 h-5" />} label="Feed" />
+      <BottomNavLink to="/ask-panchi" icon={<Sparkles className="w-5 h-5" />} label="Ask Panchi" />
+      <BottomNavLink to="/community" icon={<LayoutGrid className="w-5 h-5" />} label="Community" />
+      <BottomNavLink to="/my-dogs" icon={<DogIcon className="w-5 h-5" />} label="My Pack" />
     </nav>
   );
 }
@@ -278,12 +264,12 @@ function BottomNavLink({ to, icon, label }: { to: string, icon: React.ReactNode,
     <NavLink 
       to={to} 
       className={({ isActive }) => cn(
-        "flex flex-col items-center gap-1 transition-all duration-300",
-        isActive ? "text-primary scale-110" : "text-secondary/60"
+        "flex flex-col items-center justify-center gap-1 transition-all duration-300 min-w-0 px-1 flex-1",
+        isActive ? "text-primary bg-amber-50/50" : "text-secondary/60"
       )}
     >
       {icon}
-      <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
+      <span className="text-[9px] font-bold uppercase tracking-tighter truncate w-full text-center px-0.5">{label}</span>
     </NavLink>
   );
 }
