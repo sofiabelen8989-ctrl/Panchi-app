@@ -25,6 +25,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { supabase } from "./lib/supabaseClient";
 import { Session } from "@supabase/supabase-js";
 import { Toaster } from "sonner";
+import { DachshundLogo } from "./components/Logo";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -49,7 +50,12 @@ function PrivateRoute({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (session === undefined) return <div className="min-h-screen flex items-center justify-center">🐾 Loading...</div>;
+  if (session === undefined) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-amber-50 gap-4">
+      <DachshundLogo className="h-24 w-24 rounded-full animate-pulse shadow-xl" />
+      <p className="text-secondary font-bold text-sm tracking-widest uppercase animate-pulse">Panchi is waking up... 🐾</p>
+    </div>
+  );
   if (!session) return <Navigate to="/auth" />;
 
   return <>{children}</>;

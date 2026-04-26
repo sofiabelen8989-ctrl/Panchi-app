@@ -82,7 +82,7 @@ export function Auth() {
       <Card className="w-full max-w-md rounded-[2.5rem] shadow-2xl border-none overflow-hidden bg-white">
         <CardHeader className="pt-10 space-y-2 text-center">
           <div className="flex justify-center mb-4">
-            <DachshundLogo className="h-24 w-auto object-contain drop-shadow-md" />
+            <DachshundLogo className="h-24 w-24 rounded-full shadow-lg" />
           </div>
           <CardTitle className="text-3xl font-black text-secondary tracking-tight">
             {isSignUp ? "Join Panchi 🐾" : "Welcome Back!"}
