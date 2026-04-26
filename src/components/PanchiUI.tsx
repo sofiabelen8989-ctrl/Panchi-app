@@ -78,7 +78,7 @@ export function Navbar() {
     <nav className="hidden md:flex items-center justify-between px-6 py-5 sticky top-0 z-50 bg-white/70 backdrop-blur-md border-b border-amber-100 w-full transition-all duration-300">
       <div className="max-w-7xl mx-auto w-full flex items-center justify-between">
         <NavLink to="/" className="flex items-center gap-2 group">
-          <DachshundLogo className="w-12 h-8 text-secondary transition-transform group-hover:scale-110" />
+          <DachshundLogo className="h-8 md:h-10 w-auto object-contain drop-shadow-sm transition-transform group-hover:scale-110" />
           <span className="text-2xl font-black text-primary tracking-tight">Panchi</span>
         </NavLink>
         <div className="flex items-center gap-6">
