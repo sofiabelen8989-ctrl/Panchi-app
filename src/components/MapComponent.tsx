@@ -1,19 +1,18 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, MutableRefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { Loader2, MessageCircle, User, Navigation, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, MessageCircle, User, Navigation, ChevronUp, ChevronDown, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, formatDogAge } from '@/lib/utils';
+
+// DEFAULT CONSTANTS
+const DEFAULT_CENTER: [number, number] = [20, 0];
+const DEFAULT_ZOOM = 3;
 
 // Fix for Leaflet default icon issues in some build environments
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -59,16 +58,17 @@ const dogIcon = (photoUrl: string) => L.divIcon({
 });
 
 interface MapProps {
-  userLocation: { latitude: number, longitude: number };
+  userLocation: { latitude: number, longitude: number } | null;
 }
 
-function RecenterMap({ coords }: { coords: [number, number] }) {
+// Component to capture map instance
+const MapController = ({ mapRef }: { mapRef: MutableRefObject<L.Map | null> }) => {
   const map = useMap();
   useEffect(() => {
-    map.setView(coords);
-  }, [coords, map]);
+    mapRef.current = map;
+  }, [map, mapRef]);
   return null;
-}
+};
 
 export default function MapComponent({ userLocation }: MapProps) {
   const [radius, setRadius] = useState([10]); // km
@@ -77,19 +77,31 @@ export default function MapComponent({ userLocation }: MapProps) {
   const [filter, setFilter] = useState<'all' | 'small' | 'medium' | 'large'>('all');
   const [energyFilter, setEnergyFilter] = useState<'all' | 'calm' | 'playful' | 'high energy'>('all');
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [mapCenter, setMapCenter] = useState<{ lat: number, lng: number } | null>(null);
+  const [hasMovedMap, setHasMovedMap] = useState(false);
+  const mapRef = useRef<L.Map | null>(null);
+  
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchNearbyDogs();
+    if (userLocation) {
+      fetchNearbyDogs(userLocation.latitude, userLocation.longitude);
+    } else {
+      setLoading(false);
+    }
   }, [userLocation, radius]);
 
-  const fetchNearbyDogs = async () => {
+  const fetchNearbyDogs = async (lat: number, lng: number) => {
     setLoading(true);
     try {
-      // Use the RPC function as requested
       const { data, error } = await supabase.rpc('get_nearby_dogs', {
-        user_lat: userLocation.latitude,
-        user_lng: userLocation.longitude,
+        user_lat: lat,
+        user_lng: lng,
         radius_km: radius[0]
       });
 
@@ -97,15 +109,13 @@ export default function MapComponent({ userLocation }: MapProps) {
       setNearbyDogs(data || []);
     } catch (error: any) {
       console.error("Error fetching nearby dogs:", error);
-      // Fallback: If RPC doesn't exist yet, we'll try a basic fetch and calculate distance client-side
-      // But we should prioritize the RPC
       toast.error("Sniffing failed... Trying alternative hunt! 🐾");
       
       const { data: allDogs } = await supabase.from('dogs').select('*, owners(first_name, owner_photo)');
       if (allDogs) {
         const withDistance = allDogs.map(dog => {
           if (!dog.latitude || !dog.longitude) return null;
-          const dist = calculateDistance(userLocation.latitude, userLocation.longitude, dog.latitude, dog.longitude);
+          const dist = calculateDistance(lat, lng, dog.latitude, dog.longitude);
           return { ...dog, distance_km: dist };
         }).filter(d => d && d.distance_km <= radius[0]);
         setNearbyDogs(withDistance as any[]);
@@ -127,6 +137,83 @@ export default function MapComponent({ userLocation }: MapProps) {
     return R * c;
   };
 
+  // nominatim search
+  const searchLocation = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search` +
+        `?q=${encodeURIComponent(searchQuery)}` +
+        `&format=json&limit=5&addressdetails=1`,
+        {
+          headers: {
+            'Accept-Language': 'en',
+            'User-Agent': 'PanchiApp/1.0'
+          }
+        }
+      );
+      const data = await response.json();
+      if (data.length === 0) {
+        toast.error("No locations found 🐾");
+      }
+      setSearchResults(data);
+    } catch (error) {
+      toast.error('Could not search location 🐾');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const jumpToLocation = (result: any) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+    
+    if (mapRef.current) {
+      mapRef.current.flyTo([lat, lng], 13, {
+        duration: 1.5,
+        easeLinearity: 0.25
+      });
+    }
+
+    fetchNearbyDogs(lat, lng);
+    setSearchQuery(result.display_name.split(',')[0]);
+    setSearchResults([]);
+    setHasMovedMap(false);
+  };
+
+  const goToMyLocation = () => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        if (mapRef.current) {
+          mapRef.current.flyTo([lat, lng], 14, {
+            duration: 1.5
+          });
+        }
+        fetchNearbyDogs(lat, lng);
+        setHasMovedMap(false);
+      },
+      () => toast.error('Could not get your location 🐾')
+    );
+  };
+
+  const MapEventHandler = () => {
+    const map = useMapEvents({
+      moveend: () => {
+        const center = map.getCenter();
+        setMapCenter({ 
+          lat: center.lat, 
+          lng: center.lng 
+        });
+        setHasMovedMap(true);
+      }
+    });
+    return null;
+  };
+
   const filteredDogs = nearbyDogs.filter(dog => {
     if (filter !== 'all' && dog.size?.toLowerCase() !== filter) return false;
     if (energyFilter !== 'all' && dog.energy_level?.toLowerCase() !== energyFilter) return false;
@@ -137,7 +224,6 @@ export default function MapComponent({ userLocation }: MapProps) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return navigate('/auth');
     
-    // Logic to start/get conversation
     const { data: conv } = await supabase
       .from('conversations')
       .select('id')
@@ -166,13 +252,85 @@ export default function MapComponent({ userLocation }: MapProps) {
               <span className="text-2xl">🐾</span>
             </div>
           </div>
-          <p className="mt-6 text-2xl font-black text-secondary tracking-tight">Sniffing out dogs near you... 🐾</p>
+          <p className="mt-6 text-2xl font-black text-secondary tracking-tight">Sniffing out dogs... 🐾</p>
+        </div>
+      )}
+
+      {/* Search dogs in this area button */}
+      {hasMovedMap && mapCenter && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1001]">
+          <button
+            onClick={() => {
+              fetchNearbyDogs(mapCenter.lat, mapCenter.lng);
+              setHasMovedMap(false);
+            }}
+            className="bg-white text-amber-700 font-bold text-xs sm:text-sm px-6 py-3 rounded-full shadow-2xl border-2 border-amber-500 hover:bg-amber-50 transition-all active:scale-95 flex items-center gap-2 animate-in fade-in slide-in-from-top-4"
+          >
+            <Search className="w-4 h-4" />
+            Search dogs in this area
+          </button>
         </div>
       )}
 
       {/* Map Control Panel */}
       <div className="absolute top-4 right-4 z-[1000] w-72 md:w-80">
         <div className="bg-white/90 backdrop-blur-md border border-amber-100 rounded-[2rem] p-6 shadow-2xl space-y-6">
+          {/* SEARCH BAR */}
+          <div className="relative">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') searchLocation();
+                  }}
+                  placeholder="Search city... 🔍"
+                  className="w-full h-11 pl-4 pr-10 rounded-xl border border-amber-200 bg-white text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <button
+                onClick={searchLocation}
+                disabled={isSearching}
+                className="h-11 px-4 bg-amber-600 text-white rounded-xl text-sm font-black hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50"
+              >
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Search results dropdown */}
+            {searchResults.length > 0 && (
+              <div className="absolute top-12 left-0 right-0 bg-white rounded-xl shadow-2xl border border-amber-100 overflow-hidden z-50 max-h-60 overflow-y-auto">
+                {searchResults.map((result, i) => (
+                  <button
+                    key={i}
+                    onClick={() => jumpToLocation(result)}
+                    className="w-full text-left px-4 py-3 text-sm hover:bg-amber-50 border-b border-amber-50 last:border-0 transition-colors"
+                  >
+                    <span className="font-bold text-amber-800 block">
+                      {result.display_name.split(',')[0]}
+                    </span>
+                    <span className="text-gray-400 text-[10px] block truncate font-medium">
+                      {result.display_name.split(',').slice(1, 4).join(',')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-black uppercase text-amber-800/40 tracking-widest leading-none">
@@ -192,27 +350,28 @@ export default function MapComponent({ userLocation }: MapProps) {
             />
           </div>
 
-          <div className="pt-4 border-t border-amber-50 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-primary border border-amber-100">
-                <Navigation className="w-4 h-4" />
+          <div className="pt-4 border-t border-amber-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center text-primary border border-amber-100">
+                  <Navigation className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-secondary text-sm">
+                  {filteredDogs.length} dogs found
+                </span>
               </div>
-              <span className="font-bold text-secondary text-sm">
-                {filteredDogs.length} dogs near you
-              </span>
             </div>
+            
             <Button 
-              size="icon" 
-              variant="outline" 
-              className="rounded-full border-amber-100 h-10 w-10 text-primary hover:bg-amber-50"
-              onClick={() => {}} // Re-center handled by initial setup or manual click
+              className="w-full h-11 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-sm font-black border border-amber-200 transition-colors flex items-center justify-center gap-2"
+              onClick={goToMyLocation}
             >
-              📍
+              📍 My Location
             </Button>
           </div>
 
           <div className="space-y-3">
-             <label className="text-[10px] font-black uppercase text-amber-800/40 tracking-widest">Size</label>
+             <label className="text-[10px] font-black uppercase text-amber-800/40 tracking-widest">Size Filter</label>
              <div className="flex flex-wrap gap-2">
                {['all', 'small', 'medium', 'large'].map((s) => (
                  <button
@@ -231,49 +390,47 @@ export default function MapComponent({ userLocation }: MapProps) {
         </div>
       </div>
 
-      {nearbyDogs.length === 0 && !loading && (
-        <div className="absolute inset-0 z-[999] flex items-center justify-center p-6 text-center">
-          <div className="bg-white/90 backdrop-blur-md rounded-[3rem] p-10 shadow-2xl border border-amber-100 max-w-sm">
-             <div className="text-6xl mb-6">🐾</div>
-             <h3 className="text-2xl font-black text-secondary mb-3">No dogs found nearby</h3>
-             <p className="text-amber-800/60 font-medium mb-8 italic">Try increasing your search radius!</p>
-             <Button onClick={() => setRadius([50])} className="w-full bg-primary hover:bg-[#B45309] text-white rounded-full h-12 font-bold shadow-lg shadow-amber-600/20">
-               Expand Hunt 🐾
-             </Button>
-          </div>
-        </div>
-      )}
-
       <MapContainer 
-        center={[userLocation.latitude, userLocation.longitude]} 
-        zoom={14} 
+        center={userLocation ? [userLocation.latitude, userLocation.longitude] : DEFAULT_CENTER} 
+        zoom={userLocation ? 14 : DEFAULT_ZOOM} 
+        dragging={true}
         scrollWheelZoom={true}
-        style={{ height: '100%', width: '100%', zIndex: 1 }}
+        doubleClickZoom={true}
+        zoomControl={true}
+        touchZoom={true}
+        boxZoom={true}
+        keyboard={true}
+        style={{ height: '100%', width: '100%', zIndex: 1, cursor: 'grab' }}
       >
+        <MapController mapRef={mapRef} />
+        <MapEventHandler />
+        
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         
-        <RecenterMap coords={[userLocation.latitude, userLocation.longitude]} />
+        {userLocation && (
+          <>
+            <Marker position={[userLocation.latitude, userLocation.longitude]} icon={userIcon}>
+              <Popup className="dog-popup">
+                <div className="text-center font-bold text-secondary">You are here! 🐾</div>
+              </Popup>
+            </Marker>
 
-        <Marker position={[userLocation.latitude, userLocation.longitude]} icon={userIcon}>
-          <Popup className="dog-popup">
-            <div className="text-center font-bold text-secondary">You are here! 🐾</div>
-          </Popup>
-        </Marker>
-
-        <Circle
-          center={[userLocation.latitude, userLocation.longitude]}
-          radius={radius[0] * 1000}
-          pathOptions={{ 
-            color: '#D97706', 
-            fillColor: '#FEF3C7',
-            fillOpacity: 0.15,
-            weight: 2,
-            dashArray: '5, 10'
-          }}
-        />
+            <Circle
+              center={[userLocation.latitude, userLocation.longitude]}
+              radius={radius[0] * 1000}
+              pathOptions={{ 
+                color: '#D97706', 
+                fillColor: '#FEF3C7',
+                fillOpacity: 0.15,
+                weight: 2,
+                dashArray: '5, 10'
+              }}
+            />
+          </>
+        )}
 
         {filteredDogs.map((dog) => (
           <Marker 
@@ -283,14 +440,18 @@ export default function MapComponent({ userLocation }: MapProps) {
           >
             <Popup className="dog-popup rounded-[1.5rem] overflow-hidden p-0">
               <div className="p-3 min-w-[200px]">
-                <div className="w-full h-32 rounded-2xl overflow-hidden mb-3 shadow-inner">
-                  <img src={dog.dog_photo} className="w-full h-full object-cover" alt={dog.name} />
+                <div className="w-full h-32 rounded-2xl overflow-hidden mb-3 shadow-inner text-center bg-amber-50 flex items-center justify-center">
+                  {dog.dog_photo ? (
+                    <img src={dog.dog_photo} className="w-full h-full object-cover" alt={dog.name} />
+                  ) : (
+                    <span className="text-3xl">🐾</span>
+                  )}
                 </div>
                 <h4 className="font-black text-secondary text-lg mb-1">{dog.name}</h4>
                 <p className="text-[10px] font-bold text-amber-800/60 mb-2 uppercase tracking-wide">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
                 <div className="flex items-center gap-1.5 text-xs font-black text-primary mb-5">
                    <div className="w-5 h-5 rounded-full bg-amber-50 flex items-center justify-center">📍</div>
-                   {dog.distance_km.toFixed(1)} km away
+                   {dog.distance_km ? `${dog.distance_km.toFixed(1)} km away` : 'Nearby'}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button 
@@ -317,8 +478,8 @@ export default function MapComponent({ userLocation }: MapProps) {
 
       {/* Mobile Bottom Sheet */}
       <div className={cn(
-        "md:hidden fixed bottom-0 left-0 right-0 z-[1001] bg-white rounded-t-[2.5rem] shadow-[0_-8px_30px_rgba(0,0,0,0.1)] transition-all duration-500 ease-in-out border-t border-amber-50",
-        isSheetExpanded ? "h-[70vh]" : "h-24 hover:h-28"
+        "md:hidden fixed bottom-16 left-0 right-0 z-[1001] bg-white rounded-t-[2.5rem] shadow-[0_-8px_30px_rgba(0,0,0,0.1)] transition-all duration-500 ease-in-out border-t border-amber-50",
+        isSheetExpanded ? "h-[70vh]" : "h-24"
       )}>
         <div 
           className="w-full flex flex-col items-center py-4 cursor-grab active:cursor-grabbing"
@@ -327,7 +488,7 @@ export default function MapComponent({ userLocation }: MapProps) {
           <div className="w-12 h-1.5 bg-amber-100 rounded-full mb-3" />
           <div className="flex items-center gap-2">
             <span className="text-sm font-black text-secondary uppercase tracking-widest">
-              {filteredDogs.length} dogs near you 🐾
+              {filteredDogs.length} dogs found 🐾
             </span>
             {isSheetExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronUp className="w-4 h-4 text-primary" />}
           </div>
@@ -335,28 +496,37 @@ export default function MapComponent({ userLocation }: MapProps) {
 
         <div className="px-6 pb-20 overflow-y-auto h-[calc(70vh-80px)]">
           <div className="grid grid-cols-1 gap-4">
-            {filteredDogs.map(dog => (
+            {filteredDogs.length > 0 ? filteredDogs.map(dog => (
               <div 
                 key={dog.id} 
                 className="flex items-center gap-4 bg-amber-50/50 p-4 rounded-3xl border border-amber-100/50 hover:bg-amber-100/50 transition-colors cursor-pointer"
                 onClick={() => navigate(`/profile/${dog.id}`)}
               >
                 <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-sm border-2 border-white shrink-0">
-                  <img src={dog.dog_photo} className="w-full h-full object-cover" alt={dog.name} />
+                  {dog.dog_photo ? (
+                    <img src={dog.dog_photo} className="w-full h-full object-cover" alt={dog.name} />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-amber-100">🐾</div>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-black text-secondary truncate">{dog.name}</h4>
                   <p className="text-[10px] font-bold text-amber-800/40 uppercase tracking-wider">{dog.breed} • {formatDogAge(dog.age, dog.age_unit)}</p>
-                  <p className="text-[10px] font-black text-primary mt-1">📍 {dog.distance_km.toFixed(1)} km away</p>
+                  <p className="text-[10px] font-black text-primary mt-1">📍 {dog.distance_km ? `${dog.distance_km.toFixed(1)} km away` : 'Nearby'}</p>
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-full text-primary h-10 w-10 shrink-0">
                   🐾
                 </Button>
               </div>
-            ))}
+            )) : (
+              <div className="bg-amber-50/50 p-10 rounded-3xl border border-dashed border-amber-200 text-center py-20">
+                <p className="text-sm font-bold text-amber-800/40">No dogs found in this area. Move the map and try searching again! 🐾</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 }
+

@@ -33,11 +33,12 @@ const Map = () => {
                 setLoading(false);
             },
             (err) => {
+                // We don't block the map anymore, we just set the error and stop loading
                 setError(err.message);
                 setLoading(false);
-                toast.error("Could not get your location. Please enable location access 🐾");
+                toast.info("Showing world map. Use search or 'My Location' to find dogs! 🐾");
             },
-            { enableHighAccuracy: true }
+            { enableHighAccuracy: true, timeout: 5000 }
         );
     }, []);
 
@@ -45,27 +46,7 @@ const Map = () => {
         return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-amber-50/30">
                 <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-                <p className="text-xl font-bold text-secondary">Sniffing out dogs near you... 🐾</p>
-            </div>
-        );
-    }
-
-    if (error && !userLocation) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6 text-center">
-                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
-                  <span className="text-4xl text-red-500">📍</span>
-                </div>
-                <h2 className="text-2xl font-black text-secondary mb-3 tracking-tight">Location Access Required</h2>
-                <p className="text-amber-800/60 font-medium mb-8 max-w-xs leading-relaxed">
-                   Please enable location access in your browser settings to find dogs near you 🐾
-                </p>
-                <Button 
-                    onClick={() => window.location.reload()}
-                    className="bg-primary hover:bg-[#B45309] text-white rounded-full px-10 h-14 text-lg font-bold shadow-xl shadow-amber-600/20"
-                >
-                    Try Again 🔄
-                </Button>
+                <p className="text-xl font-bold text-secondary">Sniffing out dogs... 🐾</p>
             </div>
         );
     }
@@ -83,16 +64,14 @@ const Map = () => {
               </Button>
             </div>
             
-            {userLocation ? (
-                <Suspense fallback={
-                    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
-                        <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                        <p className="mt-4 text-secondary font-bold">Unfolding the map... 🗺️</p>
-                    </div>
-                }>
-                    <MapComponent userLocation={userLocation} />
-                </Suspense>
-            ) : null}
+            <Suspense fallback={
+                <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)]">
+                    <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                    <p className="mt-4 text-secondary font-bold">Unfolding the map... 🗺️</p>
+                </div>
+            }>
+                <MapComponent userLocation={userLocation} />
+            </Suspense>
         </div>
     );
 };
