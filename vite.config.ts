@@ -10,12 +10,13 @@ export default defineConfig(({mode}) => {
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
+    assetsInclude: ['**/*.png', '**/*.jpg', '**/*.jpeg', '**/*.svg', '**/*.webp'],
     optimizeDeps: {
       include: ['leaflet']
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
         './images/layers.png': 'leaflet/dist/images/layers.png',
         './images/layers-2x.png': 'leaflet/dist/images/layers-2x.png',
         './images/marker-icon.png': 'leaflet/dist/images/marker-icon.png',
@@ -30,9 +31,11 @@ export default defineConfig(({mode}) => {
     },
     build: {
       outDir: 'dist',
+      assetsDir: 'assets',
       sourcemap: false,
       rollupOptions: {
         output: {
+          assetFileNames: 'assets/[name]-[hash][extname]',
           manualChunks: {
             vendor: ['react', 'react-dom'],
             supabase: ['@supabase/supabase-js'],

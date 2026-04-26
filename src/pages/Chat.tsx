@@ -91,7 +91,10 @@ export function Chat() {
       // Find my dog's ID to determine who is "other"
       const { data: myDog } = await supabase.from('dogs').select('id').eq('owner_id', user.id).maybeSingle();
       
-      const otherDog = convData.dog_one.id === myDog?.id ? convData.dog_two : convData.dog_one;
+      const dogOne = Array.isArray(convData.dog_one) ? convData.dog_one[0] : convData.dog_one;
+      const dogTwo = Array.isArray(convData.dog_two) ? convData.dog_two[0] : convData.dog_two;
+      
+      const otherDog = dogOne.id === myDog?.id ? dogTwo : dogOne;
       setConversation({ ...convData, otherDog });
 
       // Load Messages

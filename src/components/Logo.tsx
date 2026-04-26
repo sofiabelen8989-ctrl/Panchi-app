@@ -1,8 +1,8 @@
-import { motion } from "motion/react";
+import panchiLogo from '@/assets/panchi-logo.png';
 
 export const DachshundLogo = ({ className }: { className?: string }) => (
   <img
-    src="/panchi-logo.png"
+    src={panchiLogo}
     alt="Panchi Logo"
     className={className}
   />
