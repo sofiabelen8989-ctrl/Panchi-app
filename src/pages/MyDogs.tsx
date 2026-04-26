@@ -336,8 +336,9 @@ export default function MyDogs() {
 
       {/* Add/Edit Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl">
-          <div className="bg-amber-500 p-8 text-white relative">
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl max-h-[90vh] flex flex-col">
+          {/* Sticky Header */}
+          <div className="bg-amber-500 p-8 text-white relative sticky top-0 z-10">
             <DialogTitle className="text-3xl font-black tracking-tight">
               {isEditMode ? `Update ${formData.name}'s Profile` : 'Add New Dog 🐾'}
             </DialogTitle>
@@ -349,7 +350,7 @@ export default function MyDogs() {
             </div>
           </div>
 
-          <div className="p-8 space-y-6">
+          <div className="flex-1 overflow-y-auto px-8 py-8 space-y-6">
             <div className="space-y-2">
               <div className="flex justify-between items-center text-xs font-bold text-muted-foreground uppercase tracking-wider">
                 <span>Step {step} of 3</span>
@@ -358,7 +359,7 @@ export default function MyDogs() {
               <Progress value={(step / 3) * 100} className="h-2 rounded-full" />
             </div>
 
-            <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="pr-1">
               {step === 1 && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
                   <div className="space-y-4">
@@ -528,7 +529,7 @@ export default function MyDogs() {
                     </div>
                     
                     <div className="space-y-2">
-                      <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Personality</h5>
+                       <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Personality</h5>
                       <div className="flex flex-wrap gap-2">
                         {formData.personality_tags.map(tagId => {
                           const tag = PERSONALITY_TAGS.find(t => t.id === tagId);
@@ -570,10 +571,11 @@ export default function MyDogs() {
                   )}
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
 
-          <DialogFooter className="p-8 bg-gray-50 flex border-t border-gray-100">
+          {/* Sticky Footer */}
+          <DialogFooter className="p-8 bg-gray-50 flex border-t border-gray-100 sticky bottom-0 z-10 w-full rounded-b-[2.5rem]">
             <div className="flex justify-between w-full gap-4">
               {step > 1 ? (
                 <Button 

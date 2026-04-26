@@ -21,6 +21,7 @@ import { Inbox } from "./pages/Inbox";
 import { Chat } from "./pages/Chat";
 import { Community } from "./pages/Community";
 import { MapPage } from "./pages/MapPage";
+import { AuthCallback } from "./pages/AuthCallback";
 import MyDogs from "./pages/MyDogs";
 import { DogProvider, useDog } from "./contexts/DogContext";
 import { AnimatePresence, motion } from "motion/react";
@@ -90,6 +91,7 @@ function AnimatedRoutes() {
       >
         <Routes location={location}>
           <Route path="/auth" element={<Auth />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/" element={<OnboardingRedirect />} />
           <Route path="/feed" element={<PrivateRoute><Feed /></PrivateRoute>} />
           <Route path="/profile/:dogId" element={<PrivateRoute><Profile /></PrivateRoute>} />
@@ -107,6 +109,24 @@ function AnimatedRoutes() {
 }
 
 export default function App() {
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('owners')
+          .select('count')
+          .limit(1)
+        
+        if (error) throw error
+        console.log('✅ Supabase connected successfully')
+        console.log('📊 Database responding correctly')
+      } catch (error) {
+        console.error('❌ Supabase connection failed:', error)
+      }
+    }
+    checkConnection()
+  }, [])
+
   return (
     <Router>
       <DogProvider>

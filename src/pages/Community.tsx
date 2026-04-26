@@ -60,6 +60,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
+import { useDog } from "../contexts/DogContext";
 
 interface Post {
   id: string;

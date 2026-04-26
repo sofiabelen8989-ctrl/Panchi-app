@@ -22,7 +22,20 @@ export function Auth() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsVerification, setNeedsVerification] = useState(false);
   const navigate = useNavigate();
+
+  const handleResendEmail = async () => {
+    const { error: resendError } = await supabase.auth.resend({
+      type: 'signup',
+      email: email,
+    });
+    if (!resendError) {
+      toast.success('Email resent! Check your inbox 🐾');
+    } else {
+      toast.error(resendError.message);
+    }
+  };
 
   const handleAuth = async (e: FormEvent) => {
     e.preventDefault();
@@ -31,32 +44,30 @@ export function Auth() {
 
     try {
       if (isSignUp) {
-        // 1. Create the auth account
-        const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
+        // 1. Create the auth account with metadata for the trigger
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              first_name: firstName || 'Dog Owner',
+              neighborhood: neighborhood || ''
+            },
+            emailRedirectTo: `${window.location.origin}/auth/callback`
+          }
+        });
+
         if (authError) throw authError;
 
         if (authData.user) {
-          // 2. Immediately insert a row into the owners table
-          const { error: profileError } = await supabase
-            .from('owners')
-            .insert({
-              id: authData.user.id,
-              first_name: firstName,
-              neighborhood: neighborhood,
-              owner_photo: null, // Initial photo is null as per fix instructions
-              created_at: new Date().toISOString()
-            });
-
-          if (profileError) {
-            console.error("Owner Profile Insert Error:", profileError);
-            toast.error("Account created, but profile setup failed: " + profileError.message);
-            // Redirect to root to trigger onboarding
-            navigate('/');
-            return;
+          if (!authData.session) {
+            // Email verification is required
+            setNeedsVerification(true);
+          } else {
+            // Logged in immediately (email verification might be disabled)
+            toast.success("Welcome to Panchi! 🐾");
+            navigate('/my-dogs');
           }
-
-          toast.success("Welcome to Panchi! Profile created.");
-          navigate('/');
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -74,6 +85,69 @@ export function Auth() {
       setLoading(false);
     }
   };
+
+  if (needsVerification) {
+    return (
+      <div className="min-h-screen bg-amber-50 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-lg overflow-hidden border border-amber-100">
+          
+          {/* Top amber banner */}
+          <div className="bg-gradient-to-r from-amber-600 to-amber-800 p-8 text-center">
+            <div className="text-6xl mb-3">🐾</div>
+            <h1 className="text-white text-2xl font-bold">
+              ¡Almost there!
+            </h1>
+            <p className="text-amber-100 text-sm mt-1">
+              The pack is waiting for you
+            </p>
+          </div>
+
+          {/* Content */}
+          <div className="p-8 text-center">
+            <div className="text-5xl mb-4">📬</div>
+            <h2 className="text-amber-800 text-xl font-bold mb-3">
+              Check your email!
+            </h2>
+            <p className="text-amber-700 text-base leading-relaxed mb-2">
+              We sent a confirmation link to:
+            </p>
+            <p className="text-amber-900 font-bold text-base mb-6 bg-amber-50 rounded-xl py-2 px-4">
+              {email}
+            </p>
+            <p className="text-amber-600 text-sm leading-relaxed mb-8">
+              Click the link in your email to confirm your account and meet your dog's new best friends 🐾
+            </p>
+
+            {/* Resend button */}
+            <button
+              onClick={handleResendEmail}
+              className="text-amber-600 text-sm underline hover:text-amber-800 transition-colors mb-4 block mx-auto"
+            >
+              Didn't receive it? Resend email
+            </button>
+
+            {/* Back to login */}
+            <button
+              onClick={() => {
+                setNeedsVerification(false);
+                setIsSignUp(false);
+              }}
+              className="w-full bg-amber-600 text-white py-3 rounded-2xl font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Back to Login
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="bg-amber-50 py-4 text-center border-t border-amber-100">
+            <p className="text-amber-500 text-xs">
+              🐾 Panchi — Built for dogs, by dog lovers
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-amber-50/50">

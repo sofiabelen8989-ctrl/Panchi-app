@@ -212,11 +212,11 @@ export function Profile() {
                   <Edit3 className="w-4 h-4 mr-2" /> Edit Profile
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md rounded-[2.5rem] p-8 border-amber-50">
-                <DialogHeader>
+              <DialogContent className="max-w-md rounded-[2.5rem] p-0 border-amber-50 overflow-hidden max-h-[90vh] flex flex-col">
+                <DialogHeader className="p-8 pb-4 sticky top-0 bg-white z-10 border-b border-amber-50">
                   <DialogTitle className="text-2xl font-black text-secondary tracking-tight">Edit Dog Profile</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-6 py-4">
+                <div className="flex-1 overflow-y-auto p-8 space-y-6">
                   <div className="flex flex-col items-center gap-4 py-2">
                     <div className="w-32 h-32 rounded-3xl overflow-hidden border-4 border-white shadow-xl bg-amber-50 relative group">
                       <img src={editPhoto || dogImage} alt="Edit preview" className="w-full h-full object-cover" />
@@ -263,7 +263,7 @@ export function Profile() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="p-8 pt-4 sticky bottom-0 bg-white z-10 border-t border-amber-50">
                   <Button 
                     onClick={saveProfile} 
                     disabled={isSaving}
@@ -593,13 +593,13 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
       <DialogTrigger asChild>
         {trigger}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-xl rounded-[3rem] p-0 overflow-hidden border-amber-100 shadow-2xl">
-        <DialogHeader className="p-8 pb-4">
+      <DialogContent className="sm:max-w-xl rounded-[3rem] p-0 overflow-hidden border-amber-100 shadow-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="p-8 pb-4 sticky top-0 bg-white z-10 border-b border-amber-50">
           <DialogTitle className="text-2xl font-black text-secondary">Share a moment 📸</DialogTitle>
           <DialogDescription className="text-amber-800/60 font-medium">Capture a memory and share it with the pack.</DialogDescription>
         </DialogHeader>
 
-        <div className="p-8 pt-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-8 pt-4 space-y-6">
           {!photo ? (
             <div 
               onClick={() => fileInputRef.current?.click()}
@@ -639,7 +639,7 @@ function CreatePostModal({ currentUser, onSuccess, trigger }: { currentUser: any
           </div>
         </div>
 
-        <DialogFooter className="p-8 bg-amber-50/30 border-t border-amber-100">
+        <DialogFooter className="p-8 bg-amber-50/30 border-t border-amber-100 sticky bottom-0 z-10 w-full">
           <Button onClick={handleSubmit} disabled={!photo || !selectedDogId || loading} className="w-full rounded-2xl bg-primary hover:bg-[#B45309] h-12 font-bold text-white shadow-lg">
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Share with the pack 🐾"}
           </Button>
