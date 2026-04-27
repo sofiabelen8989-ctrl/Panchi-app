@@ -75,36 +75,67 @@ export function Chat() {
       }
       setCurrentUser(user);
 
-      // Fetch conversation info
-      const { data: convData, error: convError } = await supabase
+      // 1. Get conversation ids only
+      const { data: conv, error: convError } = await supabase
         .from('conversations')
-        .select(`
-          id,
-          dog_one:dog_one_id(id, name, dog_photo, age, age_unit, owners(first_name, owner_photo)),
-          dog_two:dog_two_id(id, name, dog_photo, age, age_unit, owners(first_name, owner_photo))
-        `)
+        .select('id, dog_one_id, dog_two_id')
         .eq('id', conversationId)
-        .single();
-      
+        .maybeSingle();
+
       if (convError) throw convError;
+      if (!conv) {
+        toast.error("Conversation not found");
+        navigate('/inbox');
+        return;
+      }
 
-      // Find my dog's ID to determine who is "other"
-      const { data: myDog } = await supabase.from('dogs').select('id').eq('owner_id', user.id).maybeSingle();
-      
-      const dogOne = Array.isArray(convData.dog_one) ? convData.dog_one[0] : convData.dog_one;
-      const dogTwo = Array.isArray(convData.dog_two) ? convData.dog_two[0] : convData.dog_two;
-      
-      const otherDog = dogOne.id === myDog?.id ? dogTwo : dogOne;
-      setConversation({ ...convData, otherDog });
+      // 2. Get both dogs separately
+      const dogIds = [conv.dog_one_id, conv.dog_two_id].filter(Boolean);
+      let dogs: any[] = [];
+      if (dogIds.length > 0) {
+        const { data } = await supabase
+          .from('dogs')
+          .select('id, name, dog_photo, age, age_unit, owner_id')
+          .in('id', dogIds);
+        dogs = data || [];
+      }
 
-      // Load Messages
+      // 3. Get owners separately
+      const ownerIds = dogs.map(d => d.owner_id).filter(Boolean);
+      let owners: any[] = [];
+      if (ownerIds.length > 0) {
+        const { data } = await supabase
+          .from('owners')
+          .select('id, first_name, owner_photo')
+          .in('id', ownerIds);
+        owners = data || [];
+      }
+
+      // 4. Get messages
       const { data: msgData, error: msgError } = await supabase
         .from('messages')
-        .select('*, owners(first_name, owner_photo)')
+        .select('*')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
       
       if (msgError) throw msgError;
+
+      // Find my dog's ID to determine who is "other"
+      const { data: myDogs } = await supabase.from('dogs').select('id').eq('owner_id', user.id);
+      const myDogIds = myDogs?.map(d => d.id) || [];
+      
+      const findDog = (id: string) => dogs.find(d => d.id === id);
+      const findOwner = (id: string) => owners.find(o => o.id === id);
+
+      const dogOne = findDog(conv.dog_one_id);
+      const dogTwo = findDog(conv.dog_two_id);
+
+      const dogOneEnriched = dogOne ? { ...dogOne, owners: findOwner(dogOne.owner_id) } : null;
+      const dogTwoEnriched = dogTwo ? { ...dogTwo, owners: findOwner(dogTwo.owner_id) } : null;
+
+      const otherDog = myDogIds.includes(conv.dog_one_id) ? dogTwoEnriched : dogOneEnriched;
+      
+      setConversation({ ...conv, otherDog });
       setMessages(msgData || []);
 
       // Mark as read

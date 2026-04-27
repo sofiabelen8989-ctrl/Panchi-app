@@ -98,10 +98,14 @@ export function Inbox() {
       ].filter(Boolean)
 
       // STEP 4: Fetch dogs separately
-      const { data: dogs } = await supabase
-        .from('dogs')
-        .select('id, name, dog_photo, age, age_unit, owner_id')
-        .in('id', allDogIds)
+      let dogs: any[] = []
+      if (allDogIds.length > 0) {
+        const { data } = await supabase
+          .from('dogs')
+          .select('id, name, dog_photo, age, age_unit, owner_id')
+          .in('id', allDogIds)
+        dogs = data || []
+      }
 
       // STEP 5: Fetch owners separately
       const ownerIds = [
@@ -110,10 +114,14 @@ export function Inbox() {
         )
       ]
 
-      const { data: owners } = await supabase
-        .from('owners')
-        .select('id, first_name, owner_photo')
-        .in('id', ownerIds)
+      let owners: any[] = []
+      if (ownerIds.length > 0) {
+        const { data } = await supabase
+          .from('owners')
+          .select('id, first_name, owner_photo')
+          .in('id', ownerIds)
+        owners = data || []
+      }
 
       // STEP 6: Fetch last message per conversation
       const { data: lastMessages } = await supabase
@@ -128,15 +136,19 @@ export function Inbox() {
         .order('created_at', { ascending: false })
 
       // STEP 7: Fetch unread counts
-      const { data: unreadMessages } = await supabase
-        .from('messages')
-        .select('conversation_id, id')
-        .in(
-          'conversation_id',
-          conversations.map(c => c.id)
-        )
-        .eq('read', false)
-        .neq('sender_id', user.id)
+      let unreadMessages: any[] = []
+      if (conversations.length > 0) {
+        const { data } = await supabase
+          .from('messages')
+          .select('conversation_id, id')
+          .in(
+            'conversation_id',
+            conversations.map(c => c.id)
+          )
+          .eq('read', false)
+          .neq('sender_id', user.id)
+        unreadMessages = data || []
+      }
 
       // STEP 8: Assemble everything manually
       const getDog = (id: string) => 
