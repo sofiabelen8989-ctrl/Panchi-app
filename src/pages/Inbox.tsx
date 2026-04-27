@@ -9,44 +9,53 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageSquare, Clock, Dog as DogIcon } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeAgo } from "@/lib/utils";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 
 export function Inbox() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [playdateRequests, setPlaydateRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [myId, setMyId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchData();
+    loadInbox();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const loadInbox = async () => {
     try {
+      setLoading(true)
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate('/auth');
         return;
       }
-      setMyId(user.id);
+      setCurrentUser(user);
 
-      // Fetch all user's dogs
-      const { data: myDogs } = await supabase.from('dogs').select('id, name').eq('owner_id', user.id);
-      const myDogIds = myDogs?.map(d => d.id) || [];
-      
+      // STEP 1: Get all current owner's dog ids
+      const { data: myDogs, error: myDogsError } = 
+        await supabase
+          .from('dogs')
+          .select('id, name')
+          .eq('owner_id', user.id)
+
+      if (myDogsError) throw myDogsError
+
+      const myDogIds = myDogs?.map(d => d.id) || []
+
       if (myDogIds.length === 0) {
-        setConversations([]);
-        setPlaydateRequests([]);
-        setLoading(false);
-        return;
+        setConversations([])
+        setPlaydateRequests([])
+        setLoading(false)
+        return
       }
 
-      // Fetch playdate requests where receiver is one of user's dogs
-      const { data: requests, error: requestsError } = await supabase
+      // STEP (Playdate Requests): Fetch playdate requests where receiver is one of user's dogs
+      const { data: requests } = await supabase
         .from('playdate_requests')
         .select(`
           id,
@@ -59,50 +68,123 @@ export function Inbox() {
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
 
-      if (requestsError) throw requestsError;
       setPlaydateRequests(requests || []);
 
-      // Fetch conversations
-      const { data: convData, error: convError } = await supabase
-        .from('conversations')
-        .select(`
-          id,
-          dog_one:dog_one_id(id, name, dog_photo, owner_id),
-          dog_two:dog_two_id(id, name, dog_photo, owner_id),
-          messages(content, created_at, read, sender_id)
-        `)
-        .or(`dog_one_id.in.(${myDogIds.join(',')}),dog_two_id.in.(${myDogIds.join(',')})`);
+      // STEP 2: Get conversations where any of 
+      // my dogs appear
+      const { data: conversations, error: convError } = 
+        await supabase
+          .from('conversations')
+          .select('id, dog_one_id, dog_two_id, created_at')
+          .or(
+            `dog_one_id.in.(${myDogIds.join(',')}),` +
+            `dog_two_id.in.(${myDogIds.join(',')})`
+          )
+          .order('created_at', { ascending: false })
 
-      if (convError) throw convError;
+      if (convError) throw convError
+      if (!conversations || conversations.length === 0) {
+        setConversations([])
+        setLoading(false)
+        return
+      }
 
-      const sorted = (convData || []).map((conv: any) => {
-        const lastMsg = conv.messages?.sort((a: any, b: any) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
-        
-        const otherDog = myDogIds.includes(conv.dog_one.id) ? conv.dog_two : conv.dog_one;
-        const unread = conv.messages?.some((m: any) => !m.read && m.sender_id !== user.id);
+      // STEP 3: Get all unique dog ids
+      const allDogIds = [
+        ...new Set([
+          ...conversations.map(c => c.dog_one_id),
+          ...conversations.map(c => c.dog_two_id)
+        ])
+      ].filter(Boolean)
+
+      // STEP 4: Fetch dogs separately
+      const { data: dogs } = await supabase
+        .from('dogs')
+        .select('id, name, dog_photo, age, age_unit, owner_id')
+        .in('id', allDogIds)
+
+      // STEP 5: Fetch owners separately
+      const ownerIds = [
+        ...new Set(
+          dogs?.map(d => d.owner_id).filter(Boolean) || []
+        )
+      ]
+
+      const { data: owners } = await supabase
+        .from('owners')
+        .select('id, first_name, owner_photo')
+        .in('id', ownerIds)
+
+      // STEP 6: Fetch last message per conversation
+      const { data: lastMessages } = await supabase
+        .from('messages')
+        .select(
+          'conversation_id, content, created_at, sender_id'
+        )
+        .in(
+          'conversation_id', 
+          conversations.map(c => c.id)
+        )
+        .order('created_at', { ascending: false })
+
+      // STEP 7: Fetch unread counts
+      const { data: unreadMessages } = await supabase
+        .from('messages')
+        .select('conversation_id, id')
+        .in(
+          'conversation_id',
+          conversations.map(c => c.id)
+        )
+        .eq('read', false)
+        .neq('sender_id', user.id)
+
+      // STEP 8: Assemble everything manually
+      const getDog = (id: string) => 
+        dogs?.find(d => d.id === id) || null
+      const getOwner = (id: string) => 
+        owners?.find(o => o.id === id) || null
+      const getLastMessage = (convId: string) =>
+        lastMessages?.find(
+          m => m.conversation_id === convId
+        ) || null
+      const getUnreadCount = (convId: string) =>
+        unreadMessages?.filter(
+          m => m.conversation_id === convId
+        ).length || 0
+
+      const enriched = conversations.map(conv => {
+        const dogOne = getDog(conv.dog_one_id)
+        const dogTwo = getDog(conv.dog_two_id)
+
+        const isMyDogOne = myDogIds.includes(conv.dog_one_id)
+        const myDog = isMyDogOne ? dogOne : dogTwo
+        const otherDog = isMyDogOne ? dogTwo : dogOne
 
         return {
-          ...conv,
-          otherDog,
-          lastMsg,
-          unread
-        };
-      }).sort((a: any, b: any) => {
-        const timeA = a.lastMsg ? new Date(a.lastMsg.created_at).getTime() : 0;
-        const timeB = b.lastMsg ? new Date(b.lastMsg.created_at).getTime() : 0;
-        return timeB - timeA;
-      });
+          id: conv.id,
+          created_at: conv.created_at,
+          myDog: myDog ? {
+            ...myDog,
+            owner: getOwner(myDog.owner_id)
+          } : null,
+          otherDog: otherDog ? {
+            ...otherDog,
+            owner: getOwner(otherDog.owner_id)
+          } : null,
+          lastMessage: getLastMessage(conv.id),
+          unreadCount: getUnreadCount(conv.id)
+        }
+      })
 
-      setConversations(sorted);
-    } catch (error: any) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load inbox: " + error.message);
+      setConversations(enriched)
+
+    } catch (error) {
+      console.error('Inbox error:', error)
+      toast.error('Could not load conversations 🐾')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleAccept = async (request: any) => {
     try {
@@ -158,10 +240,25 @@ export function Inbox() {
 
   if (loading) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-10 space-y-4">
-        {[1, 2, 3, 4].map(i => (
-          <Skeleton key={i} className="h-24 w-full rounded-3xl" />
-        ))}
+      <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+        <div className="flex items-center gap-3 mb-8">
+          <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-600/20">
+            <MessageSquare className="w-6 h-6" />
+          </div>
+          <h1 className="text-3xl font-black text-secondary tracking-tight">Your Inbox</h1>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center gap-3 p-4 bg-white rounded-2xl animate-pulse border border-amber-50">
+              <div className="w-14 h-14 rounded-full bg-amber-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-amber-100 rounded w-1/3" />
+                <div className="h-2 bg-amber-50 rounded w-1/2" />
+                <div className="h-2 bg-amber-50 rounded w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -223,61 +320,69 @@ export function Inbox() {
       )}
 
       <h2 className="text-xs font-black text-amber-900/40 uppercase tracking-[0.2em] mb-4 pl-1">Messages</h2>
+      
       {conversations.length === 0 ? (
-        <div className="py-20 text-center bg-amber-50/50 rounded-[3rem] border border-dashed border-amber-200">
-          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
-            <DogIcon className="w-10 h-10 text-amber-200" />
-          </div>
-          <h2 className="text-2xl font-bold text-secondary mb-2">No conversations yet</h2>
-          <p className="text-amber-800/60 font-medium">Find a dog and say hello! 🐾</p>
-          <button 
+        <div className="flex flex-col items-center justify-center py-16 text-center px-4 bg-amber-50/50 rounded-[3rem] border border-dashed border-amber-200">
+          <div className="text-6xl mb-4">💬</div>
+          <h3 className="text-amber-800 font-bold text-lg mb-2">
+            No conversations yet
+          </h3>
+          <p className="text-amber-600 text-sm">
+            Find a dog and say hello! 🐾
+          </p>
+          <button
             onClick={() => navigate('/feed')}
-            className="mt-8 text-primary font-bold hover:underline"
+            className="mt-4 px-6 py-2 bg-amber-600 text-white rounded-xl text-sm font-medium"
           >
-            Go to Feed
+            Find Dogs 🐾
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {conversations.map((conv) => (
-            <motion.div
+        <div className="grid gap-2">
+          {conversations.map(conv => (
+            <div
               key={conv.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.01 }}
               onClick={() => navigate(`/chat/${conv.id}`)}
-              className="group relative flex items-center gap-4 p-4 bg-white rounded-3xl shadow-md border border-amber-50 cursor-pointer hover:shadow-lg transition-all"
+              className="flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm border border-amber-100 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all"
             >
-              <div className="w-16 h-16 rounded-full overflow-hidden bg-amber-100 flex-shrink-0 border-2 border-amber-50 ring-2 ring-white shadow-sm">
-                <img 
-                  src={conv.otherDog.dog_photo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.otherDog.name}`} 
-                  alt={conv.otherDog.name} 
-                  className="w-full h-full object-cover"
+              <div className="relative flex-shrink-0">
+                <img
+                  src={conv.otherDog?.dog_photo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${conv.otherDog?.name || 'dog'}`}
+                  alt={conv.otherDog?.name || 'Dog'}
+                  className="w-14 h-14 rounded-full object-cover bg-amber-100"
                 />
+                {conv.myDog?.dog_photo && (
+                  <img
+                    src={conv.myDog.dog_photo}
+                    alt={conv.myDog.name}
+                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full object-cover border-2 border-white bg-amber-50"
+                  />
+                )}
               </div>
-              
+
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <h3 className="text-lg font-black text-secondary truncate tracking-tight">{conv.otherDog.name}</h3>
-                  {conv.lastMsg && (
-                    <span className="text-[10px] font-bold text-amber-800/40 flex items-center gap-1 whitespace-nowrap">
-                      <Clock className="w-3 h-3" />
-                      {formatDistanceToNow(new Date(conv.lastMsg.created_at), { addSuffix: true })}
-                    </span>
-                  )}
+                <div className="flex justify-between items-start mb-0.5">
+                  <p className="font-bold text-amber-900 text-sm">
+                    {conv.otherDog?.name || 'Unknown dog'}
+                  </p>
+                  <p className="text-xs text-gray-400 flex-shrink-0 ml-2">
+                    {formatTimeAgo(conv.lastMessage?.created_at || conv.created_at)}
+                  </p>
                 </div>
-                <p className={cn(
-                  "text-sm truncate",
-                  conv.unread ? "font-bold text-secondary" : "text-amber-800/60 font-medium"
-                )}>
-                  {conv.lastMsg ? conv.lastMsg.content : "No messages yet"}
+                <p className="text-xs text-amber-500 mb-1">
+                  via {conv.myDog?.name || 'your dog'} 🐾
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {conv.lastMessage?.content || 'Start the conversation! 🐾'}
                 </p>
               </div>
 
-              {conv.unread && (
-                <div className="w-3 h-3 rounded-full bg-primary shadow-sm shadow-amber-600/40" />
+              {conv.unreadCount > 0 && (
+                <span className="flex-shrink-0 w-5 h-5 bg-amber-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {conv.unreadCount}
+                </span>
               )}
-            </motion.div>
+            </div>
           ))}
         </div>
       )}
